@@ -165,8 +165,8 @@ export default function PersonalColorCheck() {
   /* ===== RESULT VIEW ===== */
   if (view === 'result' && result) {
     return (
-      <div className="app" style={{ padding: '56px 24px 60px', maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{
+      <div className="app pcc-result-wrap" style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+        <div className="pcc-card" style={{
           background: 'linear-gradient(120deg,#fff,var(--parchment-deep))',
           border: '1px solid var(--line)', borderRadius: 22, padding: 32,
         }}>
@@ -175,9 +175,9 @@ export default function PersonalColorCheck() {
           {result.reasoning && (
             <p style={{ fontSize: 13.5, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.7 }}>{result.reasoning}</p>
           )}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 18 }}>
+          <div className="pcc-palette">
             {result.palette.map((c) => (
-              <div key={c.hex} title={c.name} style={{ width: 30, height: 30, borderRadius: '50%', background: c.hex, boxShadow: '0 0 0 2px #fff, 0 0 0 3px var(--line)' }} />
+              <div key={c.hex} title={c.name} className="pcc-palette-dot" style={{ background: c.hex }} />
             ))}
           </div>
           <div className="btn ghost" style={{ display: 'inline-flex', marginTop: 24 }} onClick={restart}>🔁 ทำใหม่</div>

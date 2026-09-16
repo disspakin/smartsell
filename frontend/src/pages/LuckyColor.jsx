@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { api } from '../api/client';
 
 const DAYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
@@ -28,6 +28,14 @@ export default function LuckyColor() {
   const [luckyHoveredStar, setLuckyHoveredStar] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const resultRef = useRef(null);
+
+  // พอมีผลลัพธ์เข้ามา ให้เลื่อนจอไปหาส่วนผลลัพธ์อัตโนมัติ
+  useEffect(() => {
+    if (result && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [result]);
 
   async function handleSubmit() {
     setLoading(true);
@@ -109,10 +117,14 @@ export default function LuckyColor() {
       {error && <p style={{ color: '#b5652f', fontSize: 13, marginTop: 16 }}>{error}</p>}
 
       {result && (
-        <div style={{
-          marginTop: 32, background: 'linear-gradient(120deg,#fff,var(--parchment-deep))',
-          border: '1px solid var(--line)', borderRadius: 22, padding: 32,
-        }}>
+        <div
+          ref={resultRef}
+          style={{
+            marginTop: 32, background: 'linear-gradient(120deg,#fff,var(--parchment-deep))',
+            border: '1px solid var(--line)', borderRadius: 22, padding: 32,
+            scrollMarginTop: 80,
+          }}
+        >
           <div
             style={{ width: 64, height: 64, borderRadius: '50%', background: result.colorHex, margin: '0 auto 16px' }}
           />
@@ -139,11 +151,7 @@ export default function LuckyColor() {
               ))}
             </div>
           )}
-          {result.products?.length === 0 && (
-            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 16 }}>
-              ยังไม่มีสินค้าที่แท็กสีนี้ไว้ในระบบ
-            </p>
-          )}
+          
 
           <div style={{
             marginTop: 24,

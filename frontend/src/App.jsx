@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import BottomNav from './components/BottomNav';
 import Home from './pages/Home';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
@@ -31,6 +32,7 @@ export default function App() {
           }
         />
       </Routes>
+      <BottomNav />
     </BrowserRouter>
   );
 }

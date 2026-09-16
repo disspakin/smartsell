@@ -15,33 +15,30 @@ export default function Products() {
   }, []);
 
   return (
-    <div className="app" style={{ padding: '48px 32px 60px' }}>
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <div className="eyebrow">All Products</div>
-        <h1 style={{ fontSize: 30, marginTop: 12 }}>สินค้าทั้งหมด</h1>
+    <div className="app">
+      <div style={{ padding: '44px 32px 0' }}>
+        <div className="eyebrow">แคตตาล็อก</div>
+        <h2 style={{ fontSize: 26, marginTop: 8 }}>สินค้าทั้งหมด</h2>
       </div>
 
-      {loading && <p style={{ textAlign: 'center', color: 'var(--text-dim)' }}>กำลังโหลด...</p>}
+      {loading && <p style={{ padding: '0 32px', color: 'var(--text-dim)' }}>กำลังโหลด...</p>}
 
       {!loading && products.length === 0 && (
-        <p style={{ textAlign: 'center', color: 'var(--text-dim)' }}>
+        <p style={{ padding: '0 32px', color: 'var(--text-dim)' }}>
           ยังไม่มีสินค้าในระบบ — ลองเพิ่มข้อมูลผ่าน database ก่อน
         </p>
       )}
 
-      <div className="grid3">
+      <div className="browse-grid">
         {products.map((p) => (
-          <div key={p.id} className="pcard" onClick={() => navigate(`/products/${p.id}`)}>
-            <div className="pimg">
-              {p.imageUrl ? <img src={p.imageUrl} alt={p.name} /> : 'IMAGE'}
-            </div>
-            <div className="pbody">
-              {p.category && (
-                <div className="tone-tag"><span className="dot"></span>{p.category}</div>
+          <div key={p.id} className="browse-card" onClick={() => navigate(`/products/${p.id}`)}>
+            <div className="bimg">
+              {p.imageUrl && (
+                <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 10, padding: 8 }} />
               )}
-              <h3>{p.name}</h3>
-              <div className="price">{p.price} บาท</div>
             </div>
+            <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>{p.name}</h3>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{p.price} บาท</div>
           </div>
         ))}
       </div>
