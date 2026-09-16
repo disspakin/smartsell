@@ -1,0 +1,122 @@
+/* ============================================
+   เพิ่มเข้าไปต่อท้ายไฟล์ theme.css เดิม (ห้ามลบของเดิม)
+   ทำให้เว็บใช้งานได้ดีบนจอมือถือจริง ๆ
+   ============================================ */
+
+/* ปุ่ม hamburger — ซ่อนไว้บนจอใหญ่ โชว์แค่บนมือถือ */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px;
+}
+.hamburger span {
+  width: 22px;
+  height: 2px;
+  background: var(--parchment);
+  border-radius: 2px;
+}
+
+/* เมนูมือถือแบบ dropdown เต็มความกว้าง */
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  background: var(--ink);
+  padding: 8px 20px 20px;
+}
+.mobile-menu a {
+  color: #cfd3d8;
+  font-size: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  text-decoration: none;
+}
+.mobile-menu.open {
+  display: flex;
+}
+
+/* ============ จอแท็บเล็ต/มือถือ (≤ 768px) ============ */
+@media (max-width: 768px) {
+  .nav {
+    padding: 12px 18px;
+  }
+  .nav .links {
+    display: none; /* ซ่อนเมนูแนวนอนเดิม บนมือถือใช้ hamburger แทน */
+  }
+  .hamburger {
+    display: flex;
+  }
+
+  .grid3 {
+    grid-template-columns: repeat(2, 1fr); /* จาก 3 คอลัมน์ เหลือ 2 บนแท็บเล็ต */
+    gap: 14px;
+  }
+
+  h1 {
+    font-size: 28px !important;
+  }
+  h2 {
+    font-size: 21px !important;
+  }
+
+  .app > div {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+}
+
+/* ============ จอมือถือขนาดเล็ก (≤ 480px) ============ */
+@media (max-width: 480px) {
+  .grid3 {
+    grid-template-columns: 1fr; /* เหลือ 1 คอลัมน์บนมือถือจอเล็ก */
+  }
+
+  h1 {
+    font-size: 24px !important;
+  }
+
+  .btn.primary,
+  .btn.ghost {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ปุ่มลอย "แชทกับเรา" ย่อขนาดลงบนมือถือ */
+  .fab-chat-label {
+    display: none; /* ซ่อนข้อความ เหลือแค่ไอคอนกลม */
+  }
+}
+/* ============================================
+   Bottom Navigation Bar (เพิ่มเข้ามาให้ครบ)
+   ============================================ */
+.bottom-nav {
+  display: none;
+}
+@media (max-width: 768px) {
+  .bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    z-index: 999;
+    box-shadow: 0 -2px 10px rgba(0,0,0,.05);
+  }
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 10px;
+  }
+  .bottom-nav-icon { font-size: 20px; }
+  .bottom-nav-item.active { color: var(--ink); font-weight: 700; }
+  .app { padding-bottom: 70px; }
+}

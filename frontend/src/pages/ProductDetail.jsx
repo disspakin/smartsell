@@ -8,8 +8,9 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [liked, setLiked] = useState(false);
-  const [toast, setToast] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
     api.getProduct(id).then((p) => {
@@ -56,17 +57,15 @@ export default function ProductDetail() {
     }
   }
 
-  function handleLike() {
-    if (liked) return;
-    setLiked(true);
-    // ส่ง INTERESTED_CLICK ไปยัง Backend
-    api.logInteraction({
-      productId: product.id,
-      eventType: 'INTERESTED_CLICK',
-      size: selectedSize,
-    });
-    setToast('❤️ บันทึกในรายการที่ชอบแล้ว!');
-    setTimeout(() => setToast(''), 2500);
+  function handleSaveClick() {
+    setIsSaved((prev) => !prev);
+    // ขั้นตอนเข้า: mount ก่อน แล้วค่อย trigger transition ให้ fade เข้า
+    setShowToast(true);
+    requestAnimationFrame(() => setToastVisible(true));
+
+    // ขั้นตอนออก: fade ออกก่อน แล้วค่อย unmount จริง
+    setTimeout(() => setToastVisible(false), 1800);
+    setTimeout(() => setShowToast(false), 2100);
   }
 
   if (!product) return <div className="app" style={{ padding: 32 }}>กำลังโหลด...</div>;
@@ -74,19 +73,7 @@ export default function ProductDetail() {
   const ALL_SIZES = ['S', 'M', 'L', 'XL'];
 
   return (
-    <div className="app" style={{ padding: '36px 32px 60px', position: 'relative' }}>
-      {/* Toast Notification */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)',
-          background: '#0f172a', color: '#fff', padding: '12px 24px',
-          borderRadius: 50, fontSize: 13.5, fontWeight: 600, zIndex: 9999,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-        }}>
-          {toast}
-        </div>
-      )}
-
+    <div className="app" style={{ padding: '36px 32px 60px' }}>
       <span
         style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', cursor: 'pointer' }}
         onClick={() => navigate('/')}
@@ -94,8 +81,8 @@ export default function ProductDetail() {
         ‹ กลับไปหน้าแรก
       </span>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 56, marginTop: 20 }}>
-        <div style={{ height: 420, background: '#fff', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <div className="pd-layout">
+        <div className="pd-image-box">
           {currentVariant?.imageUrl
             ? <img src={currentVariant.imageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             : <span style={{ color: 'var(--text-dim)' }}>IMAGE</span>}
@@ -155,32 +142,41 @@ export default function ProductDetail() {
             })}
           </div>
 
-          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink)', marginBottom: 20 }}>
-            {product.price} บาท
-          </div>
+          {currentVariant && (
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink)', marginTop: 20, marginBottom: 20 }}>
+              {product.price} บาท
+            </div>
+          )}
 
           <div
-            className="btn"
-            onClick={handleLike}
+            onClick={handleSaveClick}
+            className={isSaved ? 'btn' : 'btn ghost'}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '14px 24px',
-              fontSize: 14,
-              fontWeight: 600,
-              borderRadius: 12,
-              cursor: liked ? 'default' : 'pointer',
-              transition: 'all 0.2s ease',
-              backgroundColor: liked ? '#e11d48' : '#0f172a',
-              color: '#ffffff',
+              display: 'inline-flex', width: '100%', justifyContent: 'center',
+              background: isSaved ? 'var(--ink)' : '#fff',
+              color: isSaved ? '#fff' : 'var(--ink)',
             }}
           >
-            {liked ? '❤️ บันทึกไว้ในรายการที่ชอบแล้ว' : '🤍 กดถูกใจสินค้า (สนใจสินค้าชิ้นนี้)'}
+            {isSaved ? '❤️ บันทึกไว้ในรายการที่ชอบแล้ว' : '🤍 กดถูกใจสินค้า (สนใจสินค้าชิ้นนี้)'}
           </div>
         </div>
       </div>
+
+      {/* Toast แจ้งเตือนบันทึกสำเร็จ */}
+      {showToast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%',
+          transform: toastVisible ? 'translate(-50%, 0)' : 'translate(-50%, -20px)',
+          opacity: toastVisible ? 1 : 0,
+          transition: 'opacity .3s ease, transform .3s ease',
+          background: 'var(--ink)', color: '#fff', fontSize: 13, fontWeight: 600,
+          padding: '12px 22px', borderRadius: 30, zIndex: 2000,
+          boxShadow: '0 10px 24px rgba(0,0,0,.25)',
+          whiteSpace: 'nowrap',
+        }}>
+          
+        </div>
+      )}
     </div>
   );
 }
