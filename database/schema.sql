@@ -29,13 +29,7 @@ CREATE TABLE product_variant (
     image_url  VARCHAR(500)
 );
 
--- flexible tags used by the recommendation engine (personal color season, occasion, lucky color...)
-CREATE TABLE product_tag (
-    id         BIGSERIAL PRIMARY KEY,
-    product_id BIGINT NOT NULL REFERENCES product(id) ON DELETE CASCADE,
-    tag_type   VARCHAR(30) NOT NULL,  -- SEASON | OCCASION | LUCKY_COLOR
-    tag_value  VARCHAR(50) NOT NULL
-);
+
 
 -- one row per anonymous or logged-in shopping session with the AI assistant
 CREATE TABLE customer_session (
@@ -70,5 +64,4 @@ CREATE TABLE customer_interaction (
 );
 
 CREATE INDEX idx_variant_product ON product_variant(product_id);
-CREATE INDEX idx_tag_product ON product_tag(product_id);
 CREATE INDEX idx_interaction_product ON customer_interaction(product_id);

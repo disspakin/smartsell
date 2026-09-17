@@ -35,8 +35,7 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductVariant> variants = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductTag> tags = new ArrayList<>();
+
 
     // ----- getters / setters -----
     public Long getId() { return id; }
@@ -62,6 +61,4 @@ public class Product {
     public List<ProductVariant> getVariants() { return variants; }
     public void setVariants(List<ProductVariant> variants) { this.variants = variants; }
 
-    public List<ProductTag> getTags() { return tags; }
-    public void setTags(List<ProductTag> tags) { this.tags = tags; }
 }

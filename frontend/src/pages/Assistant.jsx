@@ -4,7 +4,7 @@ import { api } from '../api/client';
 export default function Assistant() {
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([
-    { sender: 'AI', content: 'ขอถาม Personal Color ก่อนนะ — โทนสีของคุณเป็นแบบไหน?' },
+    { sender: 'AI', content: 'ขอถาม Personal Color ก่อนนะ — โทนสีของคุณเป็นแบบไหน?', products: [] },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,15 +13,15 @@ export default function Assistant() {
 
   async function send(text) {
     if (!text.trim()) return;
-    setMessages((m) => [...m, { sender: 'USER', content: text }]);
+    setMessages((m) => [...m, { sender: 'USER', content: text, products: [] }]);
     setInput('');
     setLoading(true);
     try {
       const res = await api.sendChatMessage(sessionId, text);
       setSessionId(res.sessionId);
-      setMessages((m) => [...m, { sender: 'AI', content: res.reply }]);
+      setMessages((m) => [...m, { sender: 'AI', content: res.reply, products: res.products || [] }]);
     } catch (e) {
-      setMessages((m) => [...m, { sender: 'AI', content: 'ขออภัย เชื่อมต่อ AI ไม่สำเร็จ ลองใหม่อีกครั้งนะคะ' }]);
+      setMessages((m) => [...m, { sender: 'AI', content: 'ขออภัย เชื่อมต่อ AI ไม่สำเร็จ ลองใหม่อีกครั้งนะคะ', products: [] }]);
     } finally {
       setLoading(false);
     }
@@ -45,22 +45,55 @@ export default function Assistant() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, margin: '28px 0', textAlign: 'left' }}>
         {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: m.sender === 'USER' ? 'flex-end' : 'flex-start',
-              maxWidth: '78%',
-              padding: '14px 18px',
-              borderRadius: 16,
-              fontSize: 14,
-              lineHeight: 1.6,
-              background: m.sender === 'USER' ? 'var(--ink)' : '#fff',
-              color: m.sender === 'USER' ? '#fff' : 'var(--text)',
-              border: m.sender === 'USER' ? 'none' : '1px solid var(--line)',
-              borderLeft: m.sender === 'AI' ? '3px solid var(--accent)' : 'none',
-            }}
-          >
-            {m.content}
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignSelf: m.sender === 'USER' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+            {/* Chat bubble */}
+            <div
+              style={{
+                padding: '14px 18px',
+                borderRadius: 16,
+                fontSize: 14,
+                lineHeight: 1.6,
+                background: m.sender === 'USER' ? 'var(--ink)' : '#fff',
+                color: m.sender === 'USER' ? '#fff' : 'var(--text)',
+                border: m.sender === 'USER' ? 'none' : '1px solid var(--line)',
+                borderLeft: m.sender === 'AI' ? '3px solid var(--accent)' : 'none',
+              }}
+            >
+              {m.content}
+            </div>
+
+            {/* Product cards — shown after AI bubble only, when products exist */}
+            {m.sender === 'AI' && m.products && m.products.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  สินค้าแนะนำสำหรับคุณ
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {m.products.map((p, idx) => (
+                    <div key={p.id} style={{
+                      width: 130, background: '#fff', border: '1px solid var(--line)',
+                      borderRadius: 12, overflow: 'hidden', position: 'relative',
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: 6, left: 6, fontSize: 16,
+                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))',
+                      }}>
+                        {['🥇', '🥈', '🥉'][idx]}
+                      </div>
+                      <div style={{ height: 90, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
+                        {p.imageUrl
+                          ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>👕</div>}
+                      </div>
+                      <div style={{ padding: '8px 10px' }}>
+                        <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 10.5, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>{p.price} บาท</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {loading && <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>AI กำลังพิมพ์...</div>}

@@ -28,6 +28,7 @@ export default function LuckyColor() {
   const [luckyHoveredStar, setLuckyHoveredStar] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showProducts, setShowProducts] = useState(false);
   const resultRef = useRef(null);
 
   // พอมีผลลัพธ์เข้ามา ให้เลื่อนจอไปหาส่วนผลลัพธ์อัตโนมัติ
@@ -40,6 +41,7 @@ export default function LuckyColor() {
   async function handleSubmit() {
     setLoading(true);
     setError(null);
+    setShowProducts(false); // reset state when computing new result
     try {
       const res = await fetch('/api/lucky-color', {
         method: 'POST',
@@ -125,16 +127,37 @@ export default function LuckyColor() {
             scrollMarginTop: 80,
           }}
         >
-          <div
-            style={{ width: 64, height: 64, borderRadius: '50%', background: result.colorHex, margin: '0 auto 16px' }}
-          />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', margin: '0 auto 16px' }}>
+            {(result.colorHexes || [result.colorHex]).map((hex, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  background: hex,
+                  border: hex === '#FFFFFF' || hex === '#ffffff'
+                    ? '2px solid var(--line)'
+                    : '2px solid transparent',
+                  boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+                }}
+              />
+            ))}
+          </div>
           <div className="eyebrow">สีมงคลของคุณวันนี้</div>
           <h2 style={{ fontSize: 24, marginTop: 8 }}>{result.color}</h2>
           <p style={{ fontSize: 13.5, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.7 }}>
             {result.reasoning}
           </p>
 
-          {result.products?.length > 0 && (
+          {/* Product Recommendations Section */}
+          {result.products?.length > 0 && !showProducts && (
+            <div style={{ textAlign: 'center' }}>
+              <div className="btn primary" style={{ display: 'inline-flex', marginTop: 24, fontSize: 14 }} onClick={() => setShowProducts(true)}>
+                🛍️ ดูสินค้าแนะนำ
+              </div>
+            </div>
+          )}
+
+          {result.products?.length > 0 && showProducts && (
             <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 22, flexWrap: 'wrap' }}>
               {result.products.map((p) => (
                 <div key={p.id} style={{ width: 150, background: '#fff', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden', textAlign: 'left' }}>
@@ -151,39 +174,42 @@ export default function LuckyColor() {
               ))}
             </div>
           )}
-          
 
-          <div style={{
-            marginTop: 24,
-            padding: '14px 18px',
-            backgroundColor: '#ffffff',
-            border: '1px solid var(--line)',
-            borderRadius: 14,
-            display: 'inline-block',
-          }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-              {luckyRatingSubmitted ? 'ขอบคุณสำหรับคะแนนประเมิน! ⭐' : 'ให้คะแนนคำแนะนำสีมงคลนี้ (1-5 ดาว)'}
-            </div>
-            {!luckyRatingSubmitted && (
-              <div style={{ display: 'flex', gap: 8, fontSize: 22, justifyContent: 'center', cursor: 'pointer' }}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <span
-                    key={star}
-                    onClick={() => handleLuckyRating(star)}
-                    onMouseEnter={() => setLuckyHoveredStar(star)}
-                    onMouseLeave={() => setLuckyHoveredStar(0)}
-                    style={{
-                      transition: 'transform 0.15s',
-                      transform: luckyHoveredStar >= star ? 'scale(1.25)' : 'scale(1)',
-                      display: 'inline-block',
-                    }}
-                  >
-                    ⭐
-                  </span>
-                ))}
+          {(showProducts || !result.products?.length) && (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                marginTop: 24,
+                padding: '14px 18px',
+                backgroundColor: '#ffffff',
+                border: '1px solid var(--line)',
+                borderRadius: 14,
+                display: 'inline-block',
+              }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
+                  {luckyRatingSubmitted ? 'ขอบคุณสำหรับคะแนนประเมิน! ⭐' : 'ให้คะแนนคำแนะนำสีมงคลนี้ (1-5 ดาว)'}
+                </div>
+                {!luckyRatingSubmitted && (
+                  <div style={{ display: 'flex', gap: 8, fontSize: 22, justifyContent: 'center', cursor: 'pointer' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        onClick={() => handleLuckyRating(star)}
+                        onMouseEnter={() => setLuckyHoveredStar(star)}
+                        onMouseLeave={() => setLuckyHoveredStar(0)}
+                        style={{
+                          transition: 'transform 0.15s',
+                          transform: luckyHoveredStar >= star ? 'scale(1.25)' : 'scale(1)',
+                          display: 'inline-block',
+                        }}
+                      >
+                        ⭐
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

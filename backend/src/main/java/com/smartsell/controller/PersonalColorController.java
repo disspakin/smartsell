@@ -21,10 +21,4 @@ public class PersonalColorController {
         return service.saveManualChoice(request);
     }
 
-    // POST /api/personal-color/photo  — body: { "sessionToken": "...", "imageBase64": "..." }
-    // stub until Gemini Vision is wired up in PersonalColorService — see TODO there
-    @PostMapping("/photo")
-    public PersonalColorDTO.Result photo(@RequestBody PersonalColorDTO.PhotoRequest request) {
-        return service.analyzeFromPhoto(request);
-    }
 }

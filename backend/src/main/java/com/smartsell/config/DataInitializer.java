@@ -59,9 +59,7 @@ public class DataInitializer implements CommandLineRunner {
         poloGold.setDescription("เสื้อโปโลผ้า Cotton เนื้อนุ่ม ระบายอากาศได้ดี ตราสัญลักษณ์ UTCC สีเหลืองทองสง่างาม");
         poloGold.setImageUrl("https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80");
         createVariants(poloGold, "Yellow", "#EAB308", Arrays.asList("S", "M", "L", "XL", "XXL"));
-        createTags(poloGold, "SEASON", "Warm Spring", "Autumn");
-        createTags(poloGold, "OCCASION", "ใส่เรียน", "ทางการ", "เข้ากิจกรรม");
-        createTags(poloGold, "LUCKY_COLOR", "การงาน/การเรียน", "การเงิน/โชคลาภ");
+
         productRepository.save(poloGold);
 
         // Product 2: UTCC Polo Shirt - Navy Blue
@@ -72,9 +70,7 @@ public class DataInitializer implements CommandLineRunner {
         poloNavy.setDescription("เสื้อโปโลทรงสมาร์ท สีน้ำเงินเข้มคลาสสิก ปักโลโก้ UTCC ที่อกซ้าย เหมาะสำหรับใส่เรียนและงานทางการ");
         poloNavy.setImageUrl("https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?auto=format&fit=crop&w=600&q=80");
         createVariants(poloNavy, "Navy", "#1E3A8A", Arrays.asList("S", "M", "L", "XL"));
-        createTags(poloNavy, "SEASON", "Cool Summer", "Winter");
-        createTags(poloNavy, "OCCASION", "ใส่เรียน", "ทางการ");
-        createTags(poloNavy, "LUCKY_COLOR", "การงาน/การเรียน", "สุขภาพ/แคล้วคลาด");
+
         productRepository.save(poloNavy);
 
         // Product 3: UTCC Polo Shirt - White
@@ -85,9 +81,7 @@ public class DataInitializer implements CommandLineRunner {
         poloWhite.setDescription("เสื้อโปโลสีขาวสะอาด ตัดเย็บประณีต ผ้าซับเหงื่อได้ไว แมตช์กับกางเกงหรือกระโปรงได้ทุกสไตล์");
         poloWhite.setImageUrl("https://images.unsplash.com/photo-1625910513413-7fc214f479a3?auto=format&fit=crop&w=600&q=80");
         createVariants(poloWhite, "White", "#FFFFFF", Arrays.asList("S", "M", "L", "XL", "XXL"));
-        createTags(poloWhite, "SEASON", "Summer", "Spring", "Winter");
-        createTags(poloWhite, "OCCASION", "ใส่เรียน", "ทางการ", "ใส่ชิวๆ");
-        createTags(poloWhite, "LUCKY_COLOR", "ความรัก/เมตตา", "การเงิน/โชคลาภ");
+
         productRepository.save(poloWhite);
 
         // Product 4: UTCC T-Shirt - Sky Blue
@@ -98,9 +92,7 @@ public class DataInitializer implements CommandLineRunner {
         tshirtSky.setDescription("เสื้อยืดคอกลมผ้า Supersoft สกรีนลาย UTCC Smart Campus สีฟ้าสดใส สวมใส่สบายสไตล์ชิลๆ");
         tshirtSky.setImageUrl("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=600&q=80");
         createVariants(tshirtSky, "Sky Blue", "#38BDF8", Arrays.asList("S", "M", "L", "XL"));
-        createTags(tshirtSky, "SEASON", "Summer", "Spring");
-        createTags(tshirtSky, "OCCASION", "ใส่ชิวๆ", "เข้ากิจกรรม");
-        createTags(tshirtSky, "LUCKY_COLOR", "ความรัก/เมตตา", "สุขภาพ/แคล้วคลาด");
+
         productRepository.save(tshirtSky);
 
         // Product 5: UTCC T-Shirt - Black Premium
@@ -111,9 +103,7 @@ public class DataInitializer implements CommandLineRunner {
         tshirtBlack.setDescription("เสื้อยืดทรงโอเวอร์ไซส์สีดำ สกรีนอักษร UTCC สไตล์มินิมอล เท่ได้ทุกวัน");
         tshirtBlack.setImageUrl("https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80");
         createVariants(tshirtBlack, "Black", "#000000", Arrays.asList("M", "L", "XL"));
-        createTags(tshirtBlack, "SEASON", "Autumn", "Winter");
-        createTags(tshirtBlack, "OCCASION", "ใส่ชิวๆ", "เข้ากิจกรรม");
-        createTags(tshirtBlack, "LUCKY_COLOR", "การเงิน/โชคลาภ", "การงาน/การเรียน");
+
         productRepository.save(tshirtBlack);
 
         // Product 6: UTCC Campus Jacket Navy
@@ -124,9 +114,7 @@ public class DataInitializer implements CommandLineRunner {
         jacketNavy.setDescription("เสื้อแจ็คเก็ตกีฬามหาวิทยาลัย UTCC ผ้าวอร์มพรีเมียม ซิปรูดลื่น ใส่กันลมหรือใส่ในห้องแอร์เย็นๆ");
         jacketNavy.setImageUrl("https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80");
         createVariants(jacketNavy, "Navy Gold", "#0F172A", Arrays.asList("M", "L", "XL"));
-        createTags(jacketNavy, "SEASON", "Winter", "Autumn");
-        createTags(jacketNavy, "OCCASION", "เข้ากิจกรรม", "ใส่ชิวๆ");
-        createTags(jacketNavy, "LUCKY_COLOR", "การงาน/การเรียน", "สุขภาพ/แคล้วคลาด");
+
         productRepository.save(jacketNavy);
     }
 
@@ -141,15 +129,7 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    private void createTags(Product p, String tagType, String... values) {
-        for (String val : values) {
-            ProductTag t = new ProductTag();
-            t.setProduct(p);
-            t.setTagType(tagType);
-            t.setTagValue(val);
-            p.getTags().add(t);
-        }
-    }
+
 
     private void seedInteractions() {
         if (interactionRepository.count() > 0) return;
