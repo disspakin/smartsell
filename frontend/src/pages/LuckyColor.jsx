@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../api/client';
 
+const THAI_COLOR_HEX = {
+  'แดง': '#c0392b', 'เขียว': '#4caf50', 'เหลือง': '#f1c40f', 'ฟ้า': '#3498db',
+  'ม่วง': '#8e44ad', 'ชมพู': '#e91e8c', 'ส้ม': '#e67e22', 'ดำ': '#1c1c1c',
+  'ขาว': '#f5f5f5', 'น้ำเงิน': '#1e3a5f', 'เทา': '#95a5a6', 'น้ำตาล': '#8b5e3c',
+};
+
 const DAYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
 const GOALS = [
   { key: 'การเรียน', label: '📚 การเรียน' },
@@ -28,20 +34,24 @@ export default function LuckyColor() {
   const [luckyHoveredStar, setLuckyHoveredStar] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showProducts, setShowProducts] = useState(false);
   const resultRef = useRef(null);
+  const scrollRef = useRef(null);
 
-  // พอมีผลลัพธ์เข้ามา ให้เลื่อนจอไปหาส่วนผลลัพธ์อัตโนมัติ
   useEffect(() => {
     if (result && resultRef.current) {
       resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [result]);
 
+  function scrollProducts(direction) {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: direction * 170, behavior: 'smooth' });
+    }
+  }
+
   async function handleSubmit() {
     setLoading(true);
     setError(null);
-    setShowProducts(false); // reset state when computing new result
     try {
       const res = await fetch('/api/lucky-color', {
         method: 'POST',
@@ -122,22 +132,20 @@ export default function LuckyColor() {
         <div
           ref={resultRef}
           style={{
-            marginTop: 32, background: 'linear-gradient(120deg,#fff,var(--parchment-deep))',
-            border: '1px solid var(--line)', borderRadius: 22, padding: 32,
+            marginTop: 20, background: 'linear-gradient(120deg,#fff,var(--parchment-deep))',
+            border: '1px solid var(--line)', borderRadius: 22, padding: '20px 24px',
             scrollMarginTop: 80,
           }}
         >
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', margin: '0 auto 16px' }}>
-            {(result.colorHexes || [result.colorHex]).map((hex, i) => (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
+            {result.color.split('/').map((name, i) => (
               <div
                 key={i}
+                title={name.trim()}
                 style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: hex,
-                  border: hex === '#FFFFFF' || hex === '#ffffff'
-                    ? '2px solid var(--line)'
-                    : '2px solid transparent',
-                  boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: THAI_COLOR_HEX[name.trim()] || result.colorHex || '#ccc',
+                  boxShadow: '0 0 0 2px #fff, 0 0 0 3px var(--line)',
                 }}
               />
             ))}
@@ -148,68 +156,93 @@ export default function LuckyColor() {
             {result.reasoning}
           </p>
 
-          {/* Product Recommendations Section */}
-          {result.products?.length > 0 && !showProducts && (
-            <div style={{ textAlign: 'center' }}>
-              <div className="btn primary" style={{ display: 'inline-flex', marginTop: 24, fontSize: 14 }} onClick={() => setShowProducts(true)}>
-                🛍️ ดูสินค้าแนะนำ
+          {result.products?.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => scrollProducts(-1)}
+                style={{
+                  position: 'absolute', left: -6, top: '40%', zIndex: 5,
+                  width: 30, height: 30, borderRadius: '50%',
+                  border: '1px solid var(--line)', background: '#fff', cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0,0,0,.15)', fontSize: 16,
+                }}
+              >
+                ‹
+              </button>
+              <button
+                onClick={() => scrollProducts(1)}
+                style={{
+                  position: 'absolute', right: -6, top: '40%', zIndex: 5,
+                  width: 30, height: 30, borderRadius: '50%',
+                  border: '1px solid var(--line)', background: '#fff', cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(0,0,0,.15)', fontSize: 16,
+                }}
+              >
+                ›
+              </button>
+              <div
+                ref={scrollRef}
+                style={{
+                  display: 'flex', gap: 14, marginTop: 22, overflowX: 'auto', paddingBottom: 0,
+                  scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none', msOverflowStyle: 'none',
+                }}
+              >
+                {result.products.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      width: 150, flex: '0 0 auto', scrollSnapAlign: 'start',
+                      background: '#fff', border: '1px solid var(--line)', borderRadius: 14,
+                      overflow: 'hidden', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ height: 110, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
+                      {p.imageUrl
+                        ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>👕</div>}
+                    </div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 12, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 4 }}>{p.price} บาท</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {result.products?.length > 0 && showProducts && (
-            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 22, flexWrap: 'wrap' }}>
-              {result.products.map((p) => (
-                <div key={p.id} style={{ width: 150, background: '#fff', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden', textAlign: 'left' }}>
-                  <div style={{ height: 110, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
-                    {p.imageUrl
-                      ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>👕</div>}
-                  </div>
-                  <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 12, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 4 }}>{p.price} บาท</div>
-                  </div>
-                </div>
-              ))}
+          <div style={{
+            marginTop: 24,
+            padding: '14px 18px',
+            backgroundColor: '#ffffff',
+            border: '1px solid var(--line)',
+            borderRadius: 14,
+            display: 'inline-block',
+          }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
+              {luckyRatingSubmitted ? 'ขอบคุณสำหรับคะแนนประเมิน! ⭐' : 'ให้คะแนนคำแนะนำสีมงคลนี้ (1-5 ดาว)'}
             </div>
-          )}
-
-          {(showProducts || !result.products?.length) && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                marginTop: 24,
-                padding: '14px 18px',
-                backgroundColor: '#ffffff',
-                border: '1px solid var(--line)',
-                borderRadius: 14,
-                display: 'inline-block',
-              }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                  {luckyRatingSubmitted ? 'ขอบคุณสำหรับคะแนนประเมิน! ⭐' : 'ให้คะแนนคำแนะนำสีมงคลนี้ (1-5 ดาว)'}
-                </div>
-                {!luckyRatingSubmitted && (
-                  <div style={{ display: 'flex', gap: 8, fontSize: 22, justifyContent: 'center', cursor: 'pointer' }}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <span
-                        key={star}
-                        onClick={() => handleLuckyRating(star)}
-                        onMouseEnter={() => setLuckyHoveredStar(star)}
-                        onMouseLeave={() => setLuckyHoveredStar(0)}
-                        style={{
-                          transition: 'transform 0.15s',
-                          transform: luckyHoveredStar >= star ? 'scale(1.25)' : 'scale(1)',
-                          display: 'inline-block',
-                        }}
-                      >
-                        ⭐
-                      </span>
-                    ))}
-                  </div>
-                )}
+            {!luckyRatingSubmitted && (
+              <div style={{ display: 'flex', gap: 8, fontSize: 22, justifyContent: 'center', cursor: 'pointer' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span
+                    key={star}
+                    onClick={() => handleLuckyRating(star)}
+                    onMouseEnter={() => setLuckyHoveredStar(star)}
+                    onMouseLeave={() => setLuckyHoveredStar(0)}
+                    style={{
+                      transition: 'transform 0.15s',
+                      transform: luckyHoveredStar >= star ? 'scale(1.25)' : 'scale(1)',
+                      display: 'inline-block',
+                    }}
+                  >
+                    ⭐
+                  </span>
+                ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
