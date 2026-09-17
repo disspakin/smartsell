@@ -10,7 +10,6 @@ export default function Home() {
     api.getProducts().then(setProducts).catch(console.error);
   }, []);
 
-  // เอาสินค้ามาโชว์แค่ 1 ชิ้นแรกในหน้าแรก + การ์ด "ดูทั้งหมด" อีกกล่อง รวมเป็น 2 กล่อง
   const featured = products.slice(0, 1);
 
   return (
@@ -38,7 +37,7 @@ export default function Home() {
           </a>
         </div>
 
-        <div className="grid3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="home-featured-grid">
           {featured.map((p) => {
             const colors = p.variants
               ? Array.from(new Map(p.variants.map((v) => [v.color, v])).values())
@@ -47,7 +46,7 @@ export default function Home() {
             return (
               <div key={p.id} className="pcard" onClick={() => navigate(`/products/${p.id}`)} style={{ cursor: 'pointer' }}>
                 <div className="pimg">
-                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 10 }} /> : 'IMAGE'}
+                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'IMAGE'}
                 </div>
                 <div className="pbody">
                   {p.category && (
@@ -75,7 +74,6 @@ export default function Home() {
             );
           })}
 
-          {/* การ์ดปิดท้าย — กดไปหน้าสินค้าทั้งหมด (ใช้ class .pcard-cta ตรงกับ mockup) */}
           <div className="pcard-cta" onClick={() => navigate('/products')}>
             เลือกดูสินค้าทั้งหมด
           </div>
@@ -88,7 +86,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ปุ่มลอย "แชทกับเรา" — ใช้ class .contact-fab ตรงกับ mockup */}
       <div className="contact-fab" onClick={() => navigate('/assistant')}>
         <div className="av">🎧</div>
         <div className="pill">แชทกับเรา</div>
