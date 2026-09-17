@@ -16,9 +16,11 @@ import java.util.stream.Collectors;
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final com.smartsell.service.ProductScoringService productScoringService;
 
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository, com.smartsell.service.ProductScoringService productScoringService) {
         this.productRepository = productRepository;
+        this.productScoringService = productScoringService;
     }
 
     // GET /api/products                -> product grid on Home / catalog
@@ -43,8 +45,7 @@ public class ProductController {
     @GetMapping("/recommend")
     public List<ProductDTO> recommend(@RequestParam(required = false) String season,
                                        @RequestParam(required = false) String occasion) {
-        return productRepository.findMatchingSeasonOrOccasion(season, occasion)
-                .stream().map(this::toDTO).collect(Collectors.toList());
+        return productScoringService.recommendByPersonalColor(season, occasion, 10);
     }
 
     private ProductDTO toDTO(Product p) {

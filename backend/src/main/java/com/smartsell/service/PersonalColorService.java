@@ -1,6 +1,7 @@
 package com.smartsell.service;
 
 import com.smartsell.dto.PersonalColorDTO;
+import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.PersonalColorResult;
 import com.smartsell.repository.PersonalColorResultRepository;
 import com.smartsell.repository.SeasonPaletteRepository;
@@ -15,14 +16,17 @@ public class PersonalColorService {
 
     private final PersonalColorResultRepository resultRepository;
     private final SeasonPaletteRepository paletteRepository;
+    private final ProductScoringService productScoringService;
 
     public PersonalColorService(PersonalColorResultRepository resultRepository,
-                                 SeasonPaletteRepository paletteRepository) {
+                                 SeasonPaletteRepository paletteRepository,
+                                 ProductScoringService productScoringService) {
         this.resultRepository = resultRepository;
         this.paletteRepository = paletteRepository;
+        this.productScoringService = productScoringService;
     }
 
-    // ================= MANUAL PATH (fully working, no AI needed) =================
+    // ================= MANUAL PATH =================
     public PersonalColorDTO.Result saveManualChoice(PersonalColorDTO.ManualRequest req) {
         PersonalColorResult entity = new PersonalColorResult();
         entity.setSessionToken(req.sessionToken());
@@ -34,22 +38,8 @@ public class PersonalColorService {
         return toResult(entity);
     }
 
-    // ================= PHOTO PATH (stub — TODO: wire up Gemini Vision here) =================
-    public PersonalColorDTO.Result analyzeFromPhoto(PersonalColorDTO.PhotoRequest req) {
-        // TODO: call Gemini Vision API here with req.imageBase64(), parse season/confidence/reasoning
-        // from the response, same idea as ChatService. Left as a stub for now so the endpoint
-        // doesn't break the frontend before the API key is wired up — it just asks the
-        // customer to pick manually instead.
-        PersonalColorResult entity = new PersonalColorResult();
-        entity.setSessionToken(req.sessionToken());
-        entity.setInputMethod("PHOTO");
-        entity.setSeason("Winter"); // placeholder until Gemini is connected
-        entity.setConfidence(BigDecimal.ZERO);
-        entity.setReasoning("ยังไม่ได้เชื่อมต่อ AI วิเคราะห์รูป — นี่คือผลลัพธ์ตัวอย่าง ลองเลือกโทนสีเองด้านล่างแทนได้เลย");
-        entity = resultRepository.save(entity);
 
-        return toResult(entity);
-    }
+    // ── private helpers ──────────────────────────────────────────────────
 
     private PersonalColorDTO.Result toResult(PersonalColorResult entity) {
         List<PersonalColorDTO.PaletteColor> palette = paletteRepository
@@ -58,8 +48,13 @@ public class PersonalColorService {
                 .map(p -> new PersonalColorDTO.PaletteColor(p.getColorName(), p.getColorHex()))
                 .collect(Collectors.toList());
 
+        // Rulebase scoring — top 3 products, no occasion filter at this stage
+        List<ProductDTO> products = productScoringService
+                .recommendByPersonalColor(entity.getSeason(), null, 3);
+
         return new PersonalColorDTO.Result(
-                entity.getId(), entity.getSeason(), entity.getConfidence(), entity.getReasoning(), palette
+                entity.getId(), entity.getSeason(), entity.getConfidence(),
+                entity.getReasoning(), palette, products
         );
     }
 }

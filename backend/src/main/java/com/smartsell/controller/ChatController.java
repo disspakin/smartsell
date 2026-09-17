@@ -15,9 +15,15 @@ public class ChatController {
         this.chatService = chatService;
     }
 
-    // POST /api/chat  — used by the Personal Shopping Assistant page's input bar
-    @PostMapping
-    public ChatDTO.ChatResponse chat(@RequestBody ChatDTO.ChatRequest request) {
-        return chatService.handleMessage(request);
+    // POST /api/chat/assistant  — used by the Personal Shopping Assistant
+    @PostMapping("/assistant")
+    public ChatDTO.ChatResponse chatAssistant(@RequestBody ChatDTO.ChatRequest request) {
+        return chatService.handleShoppingAssistantChat(request);
+    }
+
+    // POST /api/chat/support  — used by the AI Chat 24hrs.
+    @PostMapping("/support")
+    public ChatDTO.ChatResponse chatSupport(@RequestBody ChatDTO.ChatRequest request) {
+        return chatService.handleGeneralSupportChat(request);
     }
 }
