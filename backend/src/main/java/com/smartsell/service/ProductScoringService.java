@@ -2,11 +2,11 @@ package com.smartsell.service;
 
 import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.Product;
-import com.smartsell.entity.ProductVariant;
 import com.smartsell.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +36,9 @@ public class ProductScoringService {
      *   Occasion match             : 3 = matched category, 0 = not matched
      */
     public List<ProductDTO> recommendByPersonalColor(String season, String occasion, int topN) {
+        if (season == null && occasion == null) {
+            return List.of();
+        }
         List<String> targetColors = colorRuleEngine.getPersonalColorList(season);
         List<Product> allProducts = productRepository.findAllWithVariants();
 

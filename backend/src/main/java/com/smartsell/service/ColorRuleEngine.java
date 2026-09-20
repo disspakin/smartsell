@@ -84,16 +84,25 @@ public class ColorRuleEngine {
 
     /** Return recommended colors for a given Personal Color season */
     public List<String> getPersonalColorList(String season) {
+        if (season == null) {
+            return List.of();
+        }
         return PERSONAL_COLOR_RULES.getOrDefault(season, List.of());
     }
 
     /** Return auspicious colors for a given birth day (วันเกิด) */
     public List<String> getLuckyColorsByDay(String day) {
+        if (day == null) {
+            return List.of();
+        }
         return LUCKY_COLOR_BY_DAY.getOrDefault(day, List.of());
     }
 
     /** Return recommended colors for a given goal (เสริมด้านอะไร) */
     public List<String> getLuckyColorsByGoal(String goal) {
+        if (goal == null) {
+            return List.of();
+        }
         return LUCKY_COLOR_BY_GOAL.getOrDefault(goal, List.of());
     }
 

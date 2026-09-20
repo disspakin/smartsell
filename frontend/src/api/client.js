@@ -85,6 +85,8 @@ export const api = {
   recommend: (season, occasion) => request(`/products/recommend?season=${season}&occasion=${occasion}`),
   sendChatMessage: (sessionId, message) =>
     request('/chat/assistant', { method: 'POST', body: JSON.stringify({ sessionId, message }) }),
+  sendSupportMessage: (sessionId, message) =>
+    request('/chat/support', { method: 'POST', body: JSON.stringify({ sessionId, message }) }),
 
   // บันทึก Event การกดถูกใจ / AI แนะนำสำเร็จ
   logInteraction: (payload) =>

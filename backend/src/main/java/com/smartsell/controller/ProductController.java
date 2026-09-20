@@ -2,7 +2,6 @@ package com.smartsell.controller;
 
 import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.Product;
-import com.smartsell.entity.ProductVariant;
 import com.smartsell.repository.ProductRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
