@@ -8,6 +8,7 @@ import com.smartsell.repository.ChatMessageRepository;
 import com.smartsell.repository.CustomerSessionRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -16,16 +17,19 @@ public class ChatService {
     private final CustomerSessionRepository sessionRepository;
     private final ChatMessageRepository messageRepository;
     private final ProductScoringService productScoringService;
-    private final GeminiService geminiService;
+    private final GeminiClientService geminiClientService;
+    private final com.smartsell.repository.ProductRepository productRepository;
 
     public ChatService(CustomerSessionRepository sessionRepository,
                        ChatMessageRepository messageRepository,
                        ProductScoringService productScoringService,
-                       GeminiService geminiService) {
+                       GeminiClientService geminiClientService,
+                       com.smartsell.repository.ProductRepository productRepository) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.productScoringService = productScoringService;
-        this.geminiService = geminiService;
+        this.geminiClientService = geminiClientService;
+        this.productRepository = productRepository;
     }
 
     // =====================================================================
@@ -39,13 +43,20 @@ public class ChatService {
 
         saveMessage(session, "USER", request.message());
 
-        String systemInstruction = """
-                คุณคือผู้ช่วยขายเสื้อผ้าออนไลน์ของร้าน SmartSell AI
-                หน้าที่ของคุณคือช่วยแนะนำเสื้อผ้าที่เหมาะกับลูกค้า โดยถามข้อมูลเพิ่มเติมถ้าจำเป็น เช่น
-                โทนสีผิว (personal color), โอกาสที่จะใส่, งบประมาณ, และไซส์ที่ต้องการ
-                ตอบด้วยน้ำเสียงสุภาพ เป็นกันเอง กระชับ ไม่ยาวเกินไป ใช้ภาษาไทย
-                """;
-        String aiReply = geminiService.ask(systemInstruction, request.message());
+        // ── Parse user message → update session preferences ──────────────────
+        // (Delegated to Gemini JSON parser)
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+        GeminiClientService.AssistantResponse aiResult = geminiClientService.generateAssistantReply(history, request.message());
+        
+        // Update session with extracted preferences
+        if (aiResult.getPersonalColor() != null) session.setPersonalColor(aiResult.getPersonalColor());
+        if (aiResult.getOccasion() != null) session.setOccasion(aiResult.getOccasion());
+        if (aiResult.getSize() != null) session.setSize(aiResult.getSize());
+        if (aiResult.getBudgetMin() != null) session.setBudgetMin(java.math.BigDecimal.valueOf(aiResult.getBudgetMin()));
+        if (aiResult.getBudgetMax() != null) session.setBudgetMax(java.math.BigDecimal.valueOf(aiResult.getBudgetMax()));
+        session = sessionRepository.save(session);
+        
+        String aiReply = aiResult.getReply();
         saveMessage(session, "AI", aiReply);
 
         ChatDTO.PreferenceSummary summary = new ChatDTO.PreferenceSummary(
@@ -53,10 +64,15 @@ public class ChatService {
                 formatBudget(session), session.getSize()
         );
 
-        // แก้ NPE: เรียกหาสินค้าแนะนำ ก็ต่อเมื่อรู้ personal color ของลูกค้าแล้วเท่านั้น
-        // (ถ้ายังไม่รู้ personal color เช่นเพิ่งเริ่มแชท ให้ส่ง list ว่างไปก่อน ไม่ให้ทั้ง request พัง)
+        // 4. Rulebase scoring — return top 3 products ONLY when all 4 preferences are collected
+        // personal_color can be "Unknown" if user skipped (still counts as complete)
+        boolean isPreferenceComplete = session.getPersonalColor() != null
+                && session.getOccasion() != null
+                && (session.getBudgetMin() != null || session.getBudgetMax() != null)
+                && session.getSize() != null;
+
         List<ProductDTO> products;
-        if (session.getPersonalColor() != null) {
+        if (isPreferenceComplete) {
             products = productScoringService.recommendByPersonalColor(
                     session.getPersonalColor(),
                     session.getOccasion(),
@@ -80,12 +96,27 @@ public class ChatService {
 
         saveMessage(session, "USER", request.message());
 
-        String systemInstruction = """
-                คุณคือแอดมินฝ่ายบริการลูกค้าของร้าน SmartSell AI (ร้านขายเสื้อผ้าออนไลน์)
-                ตอบคำถามลูกค้าเกี่ยวกับสินค้า การจัดส่ง การคืนสินค้า หรือคำถามทั่วไป
-                ด้วยน้ำเสียงสุภาพ กระชับ เป็นภาษาไทย ถ้าไม่แน่ใจข้อมูล ให้บอกตรง ๆ ว่าต้องเช็คให้ก่อน
-                """;
-        String aiReply = geminiService.ask(systemInstruction, request.message());
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+        
+        // Fetch all products from DB for context
+        List<com.smartsell.entity.Product> allProducts = productRepository.findAllWithVariants();
+        StringBuilder contextBuilder = new StringBuilder();
+        for (com.smartsell.entity.Product p : allProducts) {
+            contextBuilder.append("สินค้า: ").append(p.getName()).append("\n");
+            contextBuilder.append("- หมวดหมู่: ").append(p.getCategory()).append("\n");
+            contextBuilder.append("- ราคา: ").append(p.getPrice()).append(" บาท\n");
+            contextBuilder.append("- รายละเอียด: ").append(p.getDescription()).append("\n");
+            if (p.getVariants() != null && !p.getVariants().isEmpty()) {
+                contextBuilder.append("- ตัวเลือกที่มี (สี/ไซส์):\n");
+                for (com.smartsell.entity.ProductVariant v : p.getVariants()) {
+                    contextBuilder.append("  * สี ").append(v.getColor())
+                                  .append(" ไซส์ ").append(v.getSize()).append("\n");
+                }
+            }
+            contextBuilder.append("\n");
+        }
+        
+        String aiReply = geminiClientService.generateSupportReply(history, request.message(), contextBuilder.toString());
         saveMessage(session, "AI", aiReply);
 
         return new ChatDTO.ChatResponse(session.getId(), aiReply, null, List.of());
