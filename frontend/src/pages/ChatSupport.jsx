@@ -1,18 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 
+const SESSION_KEY = 'smartsell_support_session';
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function loadPersistedSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const { sessionId, messages, savedAt } = JSON.parse(raw);
+    if (Date.now() - savedAt > SESSION_TTL_MS) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return { sessionId, messages };
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(sessionId, messages) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    sessionId, messages, savedAt: Date.now(),
+  }));
+}
+
+const INITIAL_MESSAGE = {
+  sender: 'AI',
+  content: 'สวัสดีค่ะ! ยินดีต้อนรับสู่บริการแชทสอบถามข้อมูลสินค้าและบริการ UTCC Shop ตลอด 24 ชม. มีข้อมูลใดให้หนูช่วยดูแล สามารถสอบถามได้เลยนะคะ 😊',
+};
+
 export default function ChatSupport() {
-  const [sessionId, setSessionId] = useState(null);
-  const [messages, setMessages] = useState([
-    {
-      sender: 'AI',
-      content: 'สวัสดีค่ะ! ยินดีต้อนรับสู่บริการแชทสอบถามข้อมูลสินค้าและบริการ UTCC Shop ตลอด 24 ชม. มีข้อมูลใดให้หนูช่วยดูแล สามารถสอบถามได้เลยนะคะ 😊',
-    },
-  ]);
+  const persisted = loadPersistedSession();
+
+  const [sessionId, setSessionId] = useState(persisted?.sessionId ?? null);
+  const [messages, setMessages] = useState(persisted?.messages ?? [INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
+
+  // Persist session on every change
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  useEffect(() => {
+    if (sessionId) saveSession(sessionId, messages);
+  }, [sessionId, messages]);
 
   async function send(text) {
     if (!text || !text.trim() || loading) return;
@@ -131,6 +168,7 @@ export default function ChatSupport() {
             เจ้าหน้าที่ AI กำลังพิมพ์...
           </div>
         )}
+        <div ref={bottomRef} />
 
         {/* Feedback rating block */}
         {messages.length > 2 && !loading && (
