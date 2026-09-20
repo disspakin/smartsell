@@ -176,7 +176,15 @@ export default function Assistant() {
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   {m.products.map((p, i) => (
-                    <div key={p.id} style={{ width: 130, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+                    <div 
+                      key={p.id} 
+                      onClick={() => {
+                        api.logInteraction({ sessionId, productId: p.id, eventType: 'INTERESTED_CLICK' });
+                        // Optionally open product details or link to it
+                        // window.location.href = `/products/${p.id}`;
+                      }}
+                      style={{ width: 130, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
+                    >
                       <div style={{ position: 'absolute', top: 6, left: 6, fontSize: 16, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}>
                         {['🥇', '🥈', '🥉'][i]}
                       </div>
