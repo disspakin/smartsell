@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
 import Assistant from './pages/Assistant';
+import ChatSupport from './pages/ChatSupport';
 import PersonalColorCheck from './pages/PersonalColorCheck';
 import LuckyColor from './pages/LuckyColor';
 import AdminLogin from './pages/admin/Login';
@@ -20,6 +21,8 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/assistant" element={<Assistant />} />
+        <Route path="/support" element={<ChatSupport />} />
+        <Route path="/chat" element={<ChatSupport />} />
         <Route path="/personal-color" element={<PersonalColorCheck />} />
         <Route path="/lucky-color" element={<LuckyColor />} />
         <Route path="/admin/login" element={<AdminLogin />} />
