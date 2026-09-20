@@ -86,7 +86,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="contact-fab" onClick={() => navigate('/assistant')}>
+      <div className="contact-fab" onClick={() => navigate('/support')}>
         <div className="av">🎧</div>
         <div className="pill">แชทกับเรา</div>
       </div>

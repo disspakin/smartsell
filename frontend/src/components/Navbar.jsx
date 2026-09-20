@@ -18,6 +18,7 @@ export default function Navbar() {
           <Link to="/" className={isActive('/')}>หน้าแรก</Link>
           <Link to="/assistant" className={isActive('/assistant')}>ผู้ช่วย AI</Link>
           <Link to="/products" className={isActive('/products')}>สินค้า</Link>
+          <Link to="/support" className={isActive('/support')}>แชทกับเรา 🎧</Link>
           <Link to="/lucky-color" className={isActive('/lucky-color')}>🔮 สีมงคล</Link>
           <Link
             to="/personal-color"
@@ -45,6 +46,7 @@ export default function Navbar() {
         <Link to="/" onClick={() => setMenuOpen(false)}>หน้าแรก</Link>
         <Link to="/assistant" onClick={() => setMenuOpen(false)}>ผู้ช่วย AI</Link>
         <Link to="/products" onClick={() => setMenuOpen(false)}>สินค้า</Link>
+        <Link to="/support" onClick={() => setMenuOpen(false)}>แชทกับเรา 🎧</Link>
         <Link to="/lucky-color" onClick={() => setMenuOpen(false)}>🔮 สีมงคล</Link>
         <Link to="/personal-color" onClick={() => setMenuOpen(false)}>🎨 Personal Color</Link>
       </div>
