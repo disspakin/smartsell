@@ -24,7 +24,6 @@ export default function BottomNav() {
     { path: '/', label: 'หน้าแรก', icon: '🏠' },
     { path: '/assistant', label: 'ผู้ช่วย AI', icon: '✨' },
     { path: '/products', label: 'สินค้า', icon: '🛍️' },
-    { path: '/support', label: 'แชทกับเรา', icon: '🎧' },
     { path: '/lucky-color', label: 'สีมงคล', icon: '🔮' },
     { path: '/personal-color', label: 'Personal Color', icon: '🎨' },
   ];
