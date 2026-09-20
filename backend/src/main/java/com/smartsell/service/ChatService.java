@@ -6,6 +6,7 @@ import com.smartsell.entity.ChatMessage;
 import com.smartsell.entity.CustomerSession;
 import com.smartsell.repository.ChatMessageRepository;
 import com.smartsell.repository.CustomerSessionRepository;
+import com.smartsell.repository.CustomerInteractionRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -19,17 +20,20 @@ public class ChatService {
     private final ProductScoringService productScoringService;
     private final GeminiClientService geminiClientService;
     private final com.smartsell.repository.ProductRepository productRepository;
+    private final CustomerInteractionRepository customerInteractionRepository;
 
     public ChatService(CustomerSessionRepository sessionRepository,
                        ChatMessageRepository messageRepository,
                        ProductScoringService productScoringService,
                        GeminiClientService geminiClientService,
-                       com.smartsell.repository.ProductRepository productRepository) {
+                       com.smartsell.repository.ProductRepository productRepository,
+                       CustomerInteractionRepository customerInteractionRepository) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.productScoringService = productScoringService;
         this.geminiClientService = geminiClientService;
         this.productRepository = productRepository;
+        this.customerInteractionRepository = customerInteractionRepository;
     }
 
     // =====================================================================
@@ -78,6 +82,18 @@ public class ChatService {
                     session.getOccasion(),
                     3
             );
+            // Save tracking for AI_RECOMMENDED
+            for (ProductDTO pDto : products) {
+                com.smartsell.entity.Product product = productRepository.findById(pDto.id()).orElse(null);
+                if (product != null) {
+                    com.smartsell.entity.CustomerInteraction interaction = new com.smartsell.entity.CustomerInteraction(
+                            session, product, "AI_RECOMMENDED",
+                            session.getPersonalColor(), session.getOccasion(),
+                            null, session.getSize(), session.getBudgetMax()
+                    );
+                    customerInteractionRepository.save(interaction);
+                }
+            }
         } else {
             products = List.of();
         }
