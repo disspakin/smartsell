@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, authApi } from '../../api/client';
+import { STAFF_LOGIN_PATH } from '../../config/staffRoutes';
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
@@ -12,8 +13,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const name = localStorage.getItem('smartsell_user_name');
-    const role = localStorage.getItem('smartsell_user_role');
+    const { name, role } = authApi.getSession();
     if (name) setUser({ name, role: role || 'STORE_MANAGER' });
 
     fetchDashboardData();
@@ -30,6 +30,13 @@ export default function AdminDashboard() {
       setSummary(sumRes);
       setDemand(demRes);
     } catch (err) {
+      // backend ปฏิเสธเพราะไม่มีสิทธิ์ (เช่น token หมดอายุระหว่างเปิดหน้าค้างไว้)
+      // ล้าง session แล้วพากลับไปล็อกอิน ดีกว่าค้างที่หน้าเปล่าพร้อมข้อความ error
+      if (err.status === 401 || err.status === 403) {
+        authApi.logout();
+        navigate(STAFF_LOGIN_PATH, { replace: true });
+        return;
+      }
       setError(err.message || 'ไม่สามารถโหลดข้อมูล Analytics ได้');
     } finally {
       setLoading(false);
@@ -38,7 +45,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     authApi.logout();
-    navigate('/admin/login');
+    navigate('/', { replace: true });
   };
 
   const renderBarGroup = (title, dataMap, colors) => {

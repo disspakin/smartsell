@@ -19,6 +19,11 @@
 
   <properties>
     <java.version>17</java.version>
+    <!--
+      เครื่องที่ใช้พัฒนารัน JDK ใหม่กว่าที่ byte-buddy ของ Spring Boot 3.3.2 รองรับ
+      ทำให้ Mockito สร้าง mock ไม่ได้ จึงตรึงเวอร์ชันที่ใหม่กว่าไว้เฉพาะตอนเทสต์
+    -->
+    <byte-buddy.version>1.17.6</byte-buddy.version>
   </properties>
 
   <dependencies>
@@ -64,6 +69,17 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- ฐานข้อมูลในหน่วยความจำสำหรับเทสต์ ไม่ต้องพึ่ง PostgreSQL ที่เครื่อง -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

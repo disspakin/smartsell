@@ -2,48 +2,106 @@ package com.smartsell.config;
 
 import com.smartsell.entity.*;
 import com.smartsell.repository.*;
+import com.smartsell.security.Roles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
+
+    private static final int MIN_PASSWORD_LENGTH = 8;
+
+    /**
+     * บัญชีเดโมที่เคยถูก seed ด้วยรหัสผ่านที่อยู่ใน git history
+     * ใช้เพื่อตรวจหาและปิดบัญชีที่ยังค้างอยู่ในฐานข้อมูลเดิมเท่านั้น ไม่ได้ใช้สร้างบัญชี
+     */
+    private static final String LEGACY_DEMO_EMAIL = "admin@utcc.ac.th";
+    private static final String LEGACY_DEMO_PASSWORD = "password123";
 
     private final AppUserRepository userRepository;
     private final ProductRepository productRepository;
     private final CustomerInteractionRepository interactionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String seedAdminEmail;
+    private final String seedAdminPassword;
 
+    /**
+     * อีเมล/รหัสผ่านบัญชีเริ่มต้นอ่านจาก app.seed.admin-email / app.seed.admin-password
+     * (หรือ env APP_SEED_ADMIN_EMAIL / APP_SEED_ADMIN_PASSWORD) ไม่มีค่า default ที่เดาได้
+     */
     public DataInitializer(AppUserRepository userRepository,
                            ProductRepository productRepository,
                            CustomerInteractionRepository interactionRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           @Value("${app.seed.admin-email:}") String seedAdminEmail,
+                           @Value("${app.seed.admin-password:}") String seedAdminPassword) {
         this.userRepository = userRepository;
         this.productRepository = productRepository;
         this.interactionRepository = interactionRepository;
         this.passwordEncoder = passwordEncoder;
+        this.seedAdminEmail = seedAdminEmail == null ? "" : seedAdminEmail.trim().toLowerCase(Locale.ROOT);
+        this.seedAdminPassword = seedAdminPassword == null ? "" : seedAdminPassword;
     }
 
     @Override
     public void run(String... args) {
+        disableLegacyDemoAccount();
         seedUsers();
         seedProducts();
         seedInteractions();
     }
 
+    /**
+     * ฐานข้อมูลที่เคยรันเวอร์ชันก่อนจะยังมีบัญชีเดโมที่ใช้รหัสผ่านสาธารณะค้างอยู่
+     * เปลี่ยน hash เป็นค่าสุ่มที่ไม่มีใครรู้แทนการลบ เพราะอาจมีข้อมูลอื่นอ้างอิงแถวนี้อยู่
+     * เจ้าของบัญชีตัวจริงยังกู้คืนได้ผ่าน /api/auth/reset-password
+     */
+    private void disableLegacyDemoAccount() {
+        userRepository.findByEmail(LEGACY_DEMO_EMAIL)
+                .filter(user -> passwordEncoder.matches(LEGACY_DEMO_PASSWORD, user.getPasswordHash()))
+                .ifPresent(user -> {
+                    byte[] random = new byte[32];
+                    new SecureRandom().nextBytes(random);
+                    user.setPasswordHash(passwordEncoder.encode(Base64.getEncoder().encodeToString(random)));
+                    userRepository.save(user);
+                    log.warn("ปิดการใช้รหัสผ่านเดโมของบัญชี {} แล้ว — ใช้หน้ารีเซ็ตรหัสผ่านหากต้องการใช้บัญชีนี้ต่อ",
+                            LEGACY_DEMO_EMAIL);
+                });
+    }
+
     private void seedUsers() {
-        if (userRepository.findByEmail("admin@utcc.ac.th").isEmpty()) {
-            AppUser admin = new AppUser();
-            admin.setEmail("admin@utcc.ac.th");
-            admin.setPasswordHash(passwordEncoder.encode("password123"));
-            admin.setRole("STORE_MANAGER");
-            admin.setDisplayName("ผู้จัดการร้าน UTCC Shop");
-            userRepository.save(admin);
+        if (seedAdminEmail.isEmpty() || seedAdminPassword.isEmpty()) {
+            log.info("ไม่ได้ตั้ง APP_SEED_ADMIN_EMAIL / APP_SEED_ADMIN_PASSWORD — ข้ามการสร้างบัญชีเริ่มต้น");
+            return;
         }
+        if (seedAdminPassword.length() < MIN_PASSWORD_LENGTH) {
+            log.warn("APP_SEED_ADMIN_PASSWORD สั้นกว่า {} ตัวอักษร — ข้ามการสร้างบัญชีเริ่มต้น", MIN_PASSWORD_LENGTH);
+            return;
+        }
+        if (userRepository.findByEmail(seedAdminEmail).isPresent()) {
+            return;
+        }
+
+        AppUser admin = new AppUser();
+        admin.setEmail(seedAdminEmail);
+        admin.setPasswordHash(passwordEncoder.encode(seedAdminPassword));
+        admin.setRole(Roles.STORE_MANAGER);
+        admin.setDisplayName("ผู้จัดการร้าน UTCC Shop");
+        userRepository.save(admin);
+        log.info("สร้างบัญชีเริ่มต้น {} แล้ว", seedAdminEmail);
     }
 
     private void seedProducts() {

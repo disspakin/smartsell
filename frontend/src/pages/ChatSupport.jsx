@@ -41,15 +41,29 @@ export default function ChatSupport() {
   const [hoveredStar, setHoveredStar] = useState(0);
 
   // Persist session on every change
-  const bottomRef = useRef(null);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
 
+  // Scroll เฉพาะกล่องข้อความ (ไม่เลื่อนทั้งหน้า ไม่ให้ช่องพิมพ์หลุดจอบนมือถือ)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
   useEffect(() => {
     if (sessionId) saveSession(sessionId, messages);
   }, [sessionId, messages]);
+
+  function startNewChat() {
+    if (loading) return;
+    localStorage.removeItem(SESSION_KEY);
+    setSessionId(null);
+    setMessages([INITIAL_MESSAGE]);
+    setInput('');
+    setRatingSubmitted(false);
+    setHoveredStar(0);
+    inputRef.current?.focus();
+  }
 
   async function send(text) {
     if (!text || !text.trim() || loading) return;
@@ -57,6 +71,8 @@ export default function ChatSupport() {
     setMessages((m) => [...m, { sender: 'USER', content: userText }]);
     setInput('');
     setLoading(true);
+    // คงคีย์บอร์ดมือถือไว้ (focus ต้องอยู่ใน user gesture เดิม)
+    inputRef.current?.focus();
 
     try {
       const res = await api.sendSupportMessage(sessionId, userText);
@@ -85,8 +101,11 @@ export default function ChatSupport() {
     });
   }
 
+  // หมายเหตุ: padding ของหน้านี้อยู่ใน .chat-page (theme_mobile_addon.css)
+  // ห้ามใส่ padding แบบ inline เพราะจะทับ padding-bottom ของมือถือ
+  // แล้วช่องพิมพ์จะโดน bottom nav บัง
   return (
-    <div className="app" style={{ maxWidth: 680, margin: '0 auto', padding: '48px 20px 40px' }}>
+    <div className="app chat-page" style={{ maxWidth: 680, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div
@@ -116,6 +135,8 @@ export default function ChatSupport() {
 
       {/* Messages Container */}
       <div
+        ref={listRef}
+        className="chat-messages"
         style={{
           background: 'var(--parchment)',
           borderRadius: 20,
@@ -123,6 +144,8 @@ export default function ChatSupport() {
           minHeight: 380,
           maxHeight: 520,
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
           display: 'flex',
           flexDirection: 'column',
           gap: 16,
@@ -161,6 +184,32 @@ export default function ChatSupport() {
             >
               {m.content}
             </div>
+            {/* ปุ่มรีเฟรช — ใต้ข้อความ AI ล่าสุด เริ่มขึ้นตั้งแต่ข้อความที่ 2 (ไม่ขึ้นที่ข้อความทักทาย) */}
+            {m.sender === 'AI' && idx > 0 && idx === messages.length - 1 && !loading && (
+              <button
+                type="button"
+                onClick={startNewChat}
+                title="เริ่มบทสนทนาใหม่"
+                aria-label="เริ่มบทสนทนาใหม่"
+                style={{
+                  marginTop: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: '1px solid #f59e0b',
+                  background: '#fffbeb',
+                  color: '#b45309',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                🔄 เริ่มใหม่
+              </button>
+            )}
           </div>
         ))}
         {loading && (
@@ -168,8 +217,6 @@ export default function ChatSupport() {
             เจ้าหน้าที่ AI กำลังพิมพ์...
           </div>
         )}
-        <div ref={bottomRef} />
-
         {/* Feedback rating block */}
         {messages.length > 2 && !loading && (
           <div
@@ -210,7 +257,12 @@ export default function ChatSupport() {
       </div>
 
       {/* Input box */}
-      <div
+      <form
+        className="chat-input-bar"
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(input);
+        }}
         style={{
           display: 'flex',
           gap: 8,
@@ -222,17 +274,29 @@ export default function ChatSupport() {
         }}
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send(input)}
           placeholder="พิมพ์คำถามของคุณที่นี่..."
-          disabled={loading}
-          style={{ flex: 1, border: 'none', outline: 'none', fontSize: 14, fontFamily: 'inherit' }}
+          enterKeyHint="send"
+          autoComplete="off"
+          autoCorrect="off"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: 'none',
+            outline: 'none',
+            fontSize: 16, // 16px กัน iOS zoom เข้าช่องพิมพ์
+            fontFamily: 'inherit',
+            background: 'transparent',
+          }}
         />
         <button
-          onClick={() => send(input)}
-          disabled={loading || !input.trim()}
+          type="submit"
+          // กัน input เสีย focus ตอนแตะปุ่ม (คีย์บอร์ดจะได้ไม่ตก)
+          onMouseDown={(e) => e.preventDefault()}
           style={{
+            flex: '0 0 auto',
             width: 38,
             height: 38,
             borderRadius: '50%',
@@ -249,7 +313,7 @@ export default function ChatSupport() {
         >
           ↑
         </button>
-      </div>
+      </form>
     </div>
   );
 }

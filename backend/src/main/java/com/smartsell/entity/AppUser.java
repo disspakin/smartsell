@@ -1,3 +1,4 @@
+
 package com.smartsell.entity;
 
 import jakarta.persistence.*;

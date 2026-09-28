@@ -120,3 +120,28 @@
   .bottom-nav-item.active { color: var(--ink); font-weight: 700; }
   .app { padding-bottom: 70px; }
 }
+
+/* ============================================
+   หน้าแชทกับเรา (ChatSupport)
+   padding อยู่ที่นี่ ห้ามใส่ inline ในคอมโพเนนต์
+   ไม่งั้นจะทับ padding-bottom ของมือถือ แล้วช่องพิมพ์โดน bottom-nav บัง
+   ============================================ */
+.chat-page { padding: 48px 20px 40px; }
+
+@media (max-width: 768px) {
+  .chat-page { padding: 24px 16px 0; }
+
+  /* ช่องพิมพ์ลอยติดอยู่เหนือ bottom-nav เสมอ ไม่โดนบังและไม่ตกจอ */
+  .chat-page .chat-input-bar {
+    position: sticky;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    z-index: 10;
+    margin-bottom: calc(74px + env(safe-area-inset-bottom));
+  }
+
+  /* กล่องข้อความสูงตามจอจริง (dvh = ไม่รวมแถบเบราว์เซอร์/คีย์บอร์ด) */
+  .chat-page .chat-messages {
+    max-height: calc(100dvh - 330px);
+    min-height: 200px;
+  }
+}

@@ -1,7 +1,14 @@
 const BASE = '/api';
 
+// รวมชื่อคีย์ไว้ที่เดียว กันสะกดไม่ตรงกันเวลาอ่าน/ลบจากหลายไฟล์
+const STORAGE_KEYS = {
+  token: 'smartsell_store_token',
+  name: 'smartsell_user_name',
+  role: 'smartsell_user_role',
+};
+
 function getStoreToken() {
-  return localStorage.getItem('smartsell_store_token');
+  return localStorage.getItem(STORAGE_KEYS.token);
 }
 
 async function request(path, options = {}) {
@@ -19,16 +26,29 @@ async function request(path, options = {}) {
   if (!res.ok) {
     const errorText = await res.text();
     let errorMessage = `API error ${res.status}`;
+    let fieldErrors = null;
     try {
       const parsed = JSON.parse(errorText);
       if (parsed.error) errorMessage = parsed.error;
+      if (parsed.fieldErrors) fieldErrors = parsed.fieldErrors;
     } catch (e) {
       if (errorText) errorMessage = errorText;
     }
-    throw new Error(errorMessage);
+
+    // แนบ status ไว้กับ error เพื่อให้ผู้เรียกแยกได้ว่า "เซิร์ฟเวอร์ล่ม" (ควร fallback)
+    // ต่างจาก "ไม่มีสิทธิ์" (ห้าม fallback ต้องเด้งไปหน้าล็อกอิน)
+    const error = new Error(errorMessage);
+    error.status = res.status;
+    error.fieldErrors = fieldErrors;
+    throw error;
   }
 
   return res.json();
+}
+
+/** 401 = ยังไม่ล็อกอิน / token ใช้ไม่ได้, 403 = ล็อกอินแล้วแต่ role ไม่ถึง */
+function isAuthError(err) {
+  return err?.status === 401 || err?.status === 403;
 }
 
 export const api = {
@@ -103,48 +123,58 @@ export const api = {
     }).catch(() => ({ ok: true })), // offline-safe: ไม่ throw error
 };
 
+/**
+ * Auth ของผู้ใช้ร้านค้า
+ *
+ * ไม่มี offline fallback ในส่วนนี้โดยตั้งใจ — ของเดิมเคยปล่อยให้ผ่านเมื่อ backend
+ * ไม่ตอบสนอง ซึ่งเท่ากับใครก็ใส่ token มั่วๆ ลง localStorage แล้วเข้า Dashboard ได้
+ * การตัดสินว่าใครเข้าได้ต้องมาจาก backend เท่านั้น
+ */
 export const authApi = {
-  login: async (email, password) => {
-    try {
-      return await request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-    } catch (err) {
-      // Offline fallback authentication check
-      const normalizedEmail = (email || '').trim().toLowerCase();
-      if (normalizedEmail === 'admin@utcc.ac.th' && password === 'password123') {
-        return {
-          token: 'mock-jwt-store-manager-token',
-          email: 'admin@utcc.ac.th',
-          displayName: 'ผู้จัดการร้าน UTCC Shop',
-          role: 'STORE_MANAGER',
-        };
-      }
-      throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง (กรุณาใช้ admin@utcc.ac.th / password123)');
-    }
+  /** คืนข้อมูลผู้ใช้ที่สร้าง ไม่มี token — ผู้สมัครต้องไปล็อกอินเองอีกครั้ง */
+  register: (email, password, displayName, inviteCode) =>
+    request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, displayName, inviteCode }),
+    }),
+
+  login: (email, password) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /** ตั้งรหัสผ่านใหม่ด้วย invite code — คืน { message } ข้อความเดียวกันเสมอเมื่อ code ถูก */
+  resetPassword: (email, inviteCode, newPassword) =>
+    request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, inviteCode, newPassword }),
+    }),
+
+  getProfile: () => request('/auth/me'),
+
+  /** เก็บผลลัพธ์จาก login/register ลง localStorage */
+  saveSession: ({ token, email, displayName, role }) => {
+    localStorage.setItem(STORAGE_KEYS.token, token);
+    localStorage.setItem(STORAGE_KEYS.name, displayName || email);
+    localStorage.setItem(STORAGE_KEYS.role, role);
   },
 
-  getProfile: async () => {
-    try {
-      return await request('/auth/me');
-    } catch (err) {
-      const token = getStoreToken();
-      if (token) {
-        return {
-          email: 'admin@utcc.ac.th',
-          displayName: 'ผู้จัดการร้าน UTCC Shop',
-          role: 'STORE_MANAGER',
-        };
-      }
-      throw new Error('Unauthorized');
-    }
-  },
+  getSession: () => ({
+    token: localStorage.getItem(STORAGE_KEYS.token),
+    name: localStorage.getItem(STORAGE_KEYS.name),
+    role: localStorage.getItem(STORAGE_KEYS.role),
+  }),
 
+  /**
+   * ออกจากระบบ — ลบ token ออกจากเครื่อง
+   *
+   * ข้อจำกัดที่ควรรู้: JWT เป็น stateless ตัว token ที่ออกไปแล้วจะยังใช้ได้จนหมดอายุ
+   * (app.jwt.expiration-ms) ถ้าใครคัดลอกเก็บไว้ก่อนกดออกจากระบบ
+   * ถ้าต้องการให้ตายทันทีต้องทำ blacklist ฝั่ง server เพิ่ม
+   */
   logout: () => {
-    localStorage.removeItem('smartsell_store_token');
-    localStorage.removeItem('smartsell_user_name');
-    localStorage.removeItem('smartsell_user_role');
+    Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   },
 };
 
@@ -153,6 +183,9 @@ export const adminApi = {
     try {
       return await request('/admin/dashboard/summary');
     } catch (err) {
+      // 401/403 ไม่ใช่ "เซิร์ฟเวอร์ล่ม" แต่คือ "ไม่มีสิทธิ์" — ห้ามกลบด้วยข้อมูลตัวอย่าง
+      // ไม่งั้นคนที่ถูกปฏิเสธจะเห็นตัวเลขปลอมและเข้าใจว่าตัวเองเข้าถึงข้อมูลได้
+      if (isAuthError(err)) throw err;
       return {
         totalInteractions: 128,
         totalSessions: 45,
@@ -182,6 +215,7 @@ export const adminApi = {
     try {
       return await request('/admin/dashboard/demand-analytics');
     } catch (err) {
+      if (isAuthError(err)) throw err;
       return {
         personalColorBreakdown: {
           'Warm Spring (ใบไม้ผลัดใบ)': 18,

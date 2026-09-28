@@ -3,6 +3,7 @@ package com.smartsell.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -13,21 +14,41 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    @Value("${app.jwt.secret:CHANGE_THIS_TO_A_LONG_RANDOM_SECRET_BEFORE_DEPLOYING_SMARTSELL_KEY}")
+    /** ความยาวขั้นต่ำของกุญแจสำหรับ HMAC-SHA ตาม RFC 7518 */
+    private static final int MIN_SECRET_BYTES = 32;
+
+    /** ค่าตัวอย่างที่เคยอยู่ในไฟล์ตั้งค่า ห้ามใช้จริงเพราะเปิดเผยอยู่ใน git */
+    private static final String PLACEHOLDER_PREFIX = "CHANGE_THIS";
+
+    // ไม่ใส่ค่า default ไว้โดยตั้งใจ — ถ้าลืมตั้ง app.jwt.secret ต้องให้แอปสตาร์ทไม่ขึ้น
+    // ดีกว่าแอบสตาร์ทขึ้นด้วยกุญแจที่ใครก็รู้ แล้วปลอม token เข้ามาได้
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
 
     @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpirationMs;
 
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-        if (keyBytes.length < 32) {
-            // Pad key to meet HS256 256-bit requirement
-            byte[] padded = new byte[32];
-            System.arraycopy(keyBytes, 0, padded, 0, keyBytes.length);
-            return Keys.hmacShaKeyFor(padded);
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "ยังไม่ได้ตั้งค่า app.jwt.secret — สร้างด้วย: openssl rand -base64 64");
         }
-        return Keys.hmacShaKeyFor(keyBytes);
+        if (jwtSecret.startsWith(PLACEHOLDER_PREFIX)) {
+            throw new IllegalStateException(
+                    "app.jwt.secret ยังเป็นค่าตัวอย่าง กรุณาสุ่มค่าใหม่ด้วย: openssl rand -base64 64");
+        }
+        int length = jwtSecret.getBytes(StandardCharsets.UTF_8).length;
+        if (length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "app.jwt.secret สั้นเกินไป (" + length + " ไบต์) ต้องยาวอย่างน้อย " + MIN_SECRET_BYTES + " ไบต์");
+        }
+    }
+
+    // เดิมโค้ดเติมศูนย์ต่อท้ายกุญแจที่สั้นกว่า 32 ไบต์เพื่อให้ผ่านข้อกำหนดของ HS256
+    // ซึ่งทำให้กุญแจอ่อนๆ ผ่านไปได้เงียบๆ จึงเปลี่ยนมาปฏิเสธตั้งแต่ตอนสตาร์ทแทน (validateSecret)
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(String email, String role, String displayName) {
