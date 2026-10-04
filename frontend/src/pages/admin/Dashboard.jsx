@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, authApi } from '../../api/client';
-import { STAFF_LOGIN_PATH } from '../../config/staffRoutes';
+import { STAFF_LOGIN_PATH, STAFF_PRODUCT_ANALYTICS_PATH } from '../../config/staffRoutes';
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
@@ -200,7 +200,7 @@ export default function AdminDashboard() {
                   Total Sessions
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#0f1b2d' }}>
-                  {summary?.totalSessions || 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>ครั้ง</span>
+                  {summary?.totalSessions ?? 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>ครั้ง</span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#10b981', marginTop: '6px' }}>
                   👥 ลูกค้าเข้าใช้งานผ่าน QR / Web
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
                   Product Engagement
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#1e3a5f' }}>
-                  {summary?.totalViews || 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>วิว</span>
+                  {summary?.totalViews ?? 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>วิว</span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '6px' }}>
                   👁️ การเข้าเปิดดูรายละเอียดสินค้า
@@ -236,7 +236,7 @@ export default function AdminDashboard() {
                   Interested Clicks
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#d97706' }}>
-                  {summary?.totalInterestedClicks || 29} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>ครั้ง</span>
+                  {summary?.totalInterestedClicks ?? 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>ครั้ง</span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#d97706', marginTop: '6px' }}>
                   💖 สินค้าที่ลูกค้าถูกใจ/สนใจซื้อ
@@ -254,7 +254,7 @@ export default function AdminDashboard() {
                   AI Satisfaction
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#eab308' }}>
-                  ⭐ {summary?.averageRating || 4.8} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>/ 5.0</span>
+                  ⭐ {summary?.averageRating ?? 0} <span style={{ fontSize: '14px', fontWeight: 'normal', color: '#64748b' }}>/ 5.0</span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#ca8a04', marginTop: '6px' }}>
                   🌟 คะแนนความพึงพอใจการแนะนำของ AI
@@ -277,13 +277,16 @@ export default function AdminDashboard() {
                 border: '1px solid #e2e8f0',
                 boxShadow: '0 4px 12px -2px rgba(0,0,0,0.04)',
               }}>
-                <div style={{ marginBottom: '18px' }}>
-                  <h3 style={{ fontSize: '16px', color: '#0f1b2d', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    💖 Top 5 สินค้าที่ถูกใจ / สนใจตัดสินใจซื้อมากที่สุด
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
-                    จัดอันดับสินค้าที่ลูกค้ากดถูกใจ (Like) และแสดงความสนใจซื้อหน้าร้าน
-                  </p>
+                <div style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', color: '#0f1b2d', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      💖 Top 5 สินค้าที่ถูกใจ / สนใจตัดสินใจซื้อมากที่สุด
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
+                      จัดอันดับสินค้าที่ลูกค้ากดถูกใจ (Like) และแสดงความสนใจซื้อหน้าร้าน
+                    </p>
+                  </div>
+                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(demand?.topInterestedProducts || summary?.topInterestedProducts || []).slice(0, 5).map((p, idx) => (
@@ -339,13 +342,16 @@ export default function AdminDashboard() {
                 border: '1px solid #e2e8f0',
                 boxShadow: '0 4px 12px -2px rgba(0,0,0,0.04)',
               }}>
-                <div style={{ marginBottom: '18px' }}>
-                  <h3 style={{ fontSize: '16px', color: '#0f1b2d', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🤖 Top 5 สินค้าที่ AI แนะนำให้ลูกค้าสำเร็จบ่อยที่สุด
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
-                    จัดอันดับสินค้าที่ระบบ AI Personal Assistant / Color Matching แนะนำให้ลูกค้าสำเร็จ
-                  </p>
+                <div style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', color: '#0f1b2d', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🤖 Top 5 สินค้าที่ AI แนะนำให้ลูกค้าสำเร็จบ่อยที่สุด
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
+                      จัดอันดับสินค้าที่ระบบ AI Personal Assistant / Color Matching แนะนำให้ลูกค้าสำเร็จ
+                    </p>
+                  </div>
+                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(demand?.topRecommendedProducts || summary?.topRecommendedProducts || []).slice(0, 5).map((p, idx) => (
@@ -387,6 +393,71 @@ export default function AdminDashboard() {
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#8b5cf6' }}>{p.count}</span>
                         <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>ครั้งที่แนะนำ</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top 5 Viewed Products */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                padding: '24px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 4px 12px -2px rgba(0,0,0,0.04)',
+              }}>
+                <div style={{ marginBottom: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', color: '#0f1b2d', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      👁️ Top 5 สินค้าที่ถูกเข้าชมมากที่สุด
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
+                      จัดอันดับสินค้าที่มีการคลิกเข้าไปดูรายละเอียด (Views) มากที่สุด
+                    </p>
+                  </div>
+                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {(demand?.topViewedProducts || summary?.topViewedProducts || []).slice(0, 5).map((p, idx) => (
+                    <div key={p.productId || idx} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                      padding: '10px 14px',
+                      backgroundColor: '#f8fafc',
+                      borderRadius: '12px',
+                      border: '1px solid #f1f5f9',
+                    }}>
+                      <div style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        backgroundColor: '#dbeafe',
+                        color: '#2563eb',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {idx + 1}
+                      </div>
+                      <img
+                        src={p.imageUrl}
+                        alt={p.productName}
+                        style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.productName}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>{p.price} บาท</div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#3b82f6' }}>{p.count}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>วิว</span>
                       </div>
                     </div>
                   ))}
@@ -468,59 +539,6 @@ export default function AdminDashboard() {
                 </p>
                 {renderBarGroup('Size', demand?.sizeBreakdown, ['#0284c7', '#0369a1', '#075985', '#0c4a6e', '#38bdf8'])}
               </div>
-            </div>
-
-            {/* Top Interacted Products Table */}
-            <div style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '16px',
-              padding: '24px',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 4px 12px -2px rgba(0,0,0,0.04)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div>
-                  <h3 style={{ fontSize: '17px', color: '#0f1b2d', margin: 0 }}>
-                    🔥 Top Interacted Products
-                  </h3>
-                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: '4px 0 0' }}>
-                    สินค้าที่ได้รับความสนใจสูงที่สุดจากลูกค้าหน้าร้าน
-                  </p>
-                </div>
-              </div>
-
-              {demand?.topProducts && demand.topProducts.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
-                        <th style={{ padding: '12px 16px' }}>รหัสสินค้า</th>
-                        <th style={{ padding: '12px 16px' }}>ชื่อสินค้า</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>จำนวน Interaction</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demand.topProducts.map((prod, idx) => (
-                        <tr key={prod.productId} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '12px 16px', fontWeight: '600', color: '#1e3a5f' }}>
-                            #{prod.productId}
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#1f2937' }}>
-                            {prod.productName}
-                          </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '700', color: '#0f1b2d' }}>
-                            {prod.interactionCount} ครั้ง
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ color: '#9ca3af', fontSize: '13px', padding: '16px 0', textAlign: 'center' }}>
-                  ยังไม่มีข้อมูลการมีส่วนร่วมในขณะนี้
-                </div>
-              )}
             </div>
           </>
         )}

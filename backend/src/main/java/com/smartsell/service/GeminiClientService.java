@@ -227,34 +227,34 @@ public class GeminiClientService {
             resp.setPersonalColor("Winter");
             resp.setReply("รับทราบโทนสี Winter คมชัดโดดเด่นค่ะ! แล้วคุณอยากได้ชุดสำหรับใส่ในโอกาสไหนเป็นพิเศษคะ? (เช่น ทั่วไป, เข้ากิจกรรม, ทางการ)");
             return resp;
-        } else if (lower.contains("ไม่รู้")) {
-            resp.setPersonalColor("Spring"); // Default friendly palette
-            resp.setReply("ไม่เป็นไรเลยค่ะ! เราสามารถเริ่มต้นด้วยโทนสียอดนิยมได้ แล้วคุณอยากได้ชุดสำหรับใส่ในโอกาสไหนคะ? (เช่น ทั่วไป, เข้ากิจกรรม, ทางการ)");
+        } else if (lower.contains("ไม่รู้") || lower.contains("ข้าม")) {
+            resp.setPersonalColor("Unknown");
+            resp.setReply("ไม่เป็นไรเลยค่ะ! เราสามารถข้ามไปคำถามถัดไปได้เลย แล้วคุณอยากได้ชุดสำหรับใส่ในโอกาสไหนคะ? (เช่น ทั่วไป, เข้ากิจกรรม, ทางการ)");
             return resp;
         }
         
         // 2. Occasion
         if (lower.contains("กิจกรรม") || lower.contains("ทั่วไป") || lower.contains("ทางการ") || lower.contains("เรียน") || lower.contains("เที่ยว") || lower.contains("ทำงาน") || lower.contains("casual") || lower.contains("formal")) {
             resp.setOccasion(newMessage.trim());
-            resp.setReply("บันทึกโอกาสการใช้งานเรียบร้อยค่ะ! คุณมีงบประมาณสำหรับการแต่งตัวครั้งนี้เท่าไหร่คะ? (เช่น ต่ำกว่า 350, 300 - 500, มากกว่า 500)");
+            resp.setReply("บันทึกโอกาสการใช้งานเรียบร้อยค่ะ! คุณมีงบประมาณสำหรับการแต่งตัวครั้งนี้เท่าไหร่คะ? (เช่น ต่ำกว่า 350, 500, ไม่ระบุ)");
             return resp;
         }
 
         // 3. Budget
-        if (lower.contains("350") && (lower.contains("ต่ำกว่า") || lower.contains("<"))) {
+        if (lower.contains("350") || lower.contains("ต่ำกว่า")) {
             resp.setBudgetMin(0.0);
             resp.setBudgetMax(350.0);
             resp.setReply("บันทึกงบประมาณต่ำกว่า 350 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
             return resp;
-        } else if (lower.contains("300") && lower.contains("500")) {
-            resp.setBudgetMin(300.0);
+        } else if (lower.contains("500")) {
+            resp.setBudgetMin(0.0);
             resp.setBudgetMax(500.0);
-            resp.setReply("บันทึกงบประมาณช่วง 300 - 500 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+            resp.setReply("บันทึกงบประมาณ 500 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
             return resp;
-        } else if (lower.contains("500") && (lower.contains("มากกว่า") || lower.contains(">"))) {
-            resp.setBudgetMin(500.0);
-            resp.setBudgetMax(2000.0);
-            resp.setReply("บันทึกงบประมาณมากกว่า 500 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+        } else if (lower.contains("ไม่ระบุ")) {
+            resp.setBudgetMin(0.0);
+            resp.setBudgetMax(99999.0);
+            resp.setReply("รับทราบค่ะ ไม่จำกัดงบประมาณ คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
             return resp;
         }
         

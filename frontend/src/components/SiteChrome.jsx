@@ -1,13 +1,13 @@
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import BottomNav from './BottomNav';
-import { STAFF_DASHBOARD_PATH, STAFF_LOGIN_PATH, STAFF_REGISTER_PATH } from '../config/staffRoutes';
+import { STAFF_DASHBOARD_PATH, STAFF_LOGIN_PATH, STAFF_REGISTER_PATH, STAFF_RESET_PASSWORD_PATH, STAFF_PRODUCT_ANALYTICS_PATH } from '../config/staffRoutes';
 
 /**
  * หน้าของฝั่งร้านค้าทั้งหมด — ไม่ต้องมีเมนูของลูกค้าครอบ
  * Dashboard มีแถบหัวของตัวเองพร้อมชื่อผู้ใช้และปุ่มออกจากระบบอยู่แล้ว
  */
-const CHROME_FREE_PATHS = [STAFF_LOGIN_PATH, STAFF_REGISTER_PATH, STAFF_DASHBOARD_PATH];
+const CHROME_FREE_PATHS = [STAFF_LOGIN_PATH, STAFF_REGISTER_PATH, STAFF_RESET_PASSWORD_PATH, STAFF_DASHBOARD_PATH, STAFF_PRODUCT_ANALYTICS_PATH];
 
 /**
  * ครอบหน้าเว็บด้วยเมนูบน/ล่างของฝั่งลูกค้า ยกเว้นหน้าเข้าสู่ระบบของร้านค้า

@@ -19,7 +19,7 @@ public class AppUser {
     private String passwordHash;
 
     @Column(nullable = false, length = 20)
-    private String role = "CUSTOMER"; // CUSTOMER | STAFF | MANAGER
+    private String role = "STORE_MANAGER"; // STORE_MANAGER | ADMIN
 
     @Column(name = "display_name", length = 100)
     private String displayName;

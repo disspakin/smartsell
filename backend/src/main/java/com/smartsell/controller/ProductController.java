@@ -15,11 +15,9 @@ import java.util.stream.Collectors;
 public class ProductController {
 
     private final ProductRepository productRepository;
-    private final com.smartsell.service.ProductScoringService productScoringService;
 
-    public ProductController(ProductRepository productRepository, com.smartsell.service.ProductScoringService productScoringService) {
+    public ProductController(ProductRepository productRepository) {
         this.productRepository = productRepository;
-        this.productScoringService = productScoringService;
     }
 
     // GET /api/products                -> product grid on Home / catalog
@@ -38,13 +36,6 @@ public class ProductController {
         return productRepository.findById(id)
                 .map(p -> ResponseEntity.ok(toDTO(p)))
                 .orElse(ResponseEntity.notFound().build());
-    }
-
-    // used by the recommendation engine on the Personal Shopping Assistant page
-    @GetMapping("/recommend")
-    public List<ProductDTO> recommend(@RequestParam(required = false) String season,
-                                       @RequestParam(required = false) String occasion) {
-        return productScoringService.recommendByPersonalColor(season, occasion, 10);
     }
 
     private ProductDTO toDTO(Product p) {

@@ -2,6 +2,8 @@ package com.smartsell.service;
 
 import com.smartsell.dto.LuckyColorDTO;
 import com.smartsell.dto.ProductDTO;
+import com.smartsell.entity.CustomerInteraction;
+import com.smartsell.repository.CustomerInteractionRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -12,9 +14,12 @@ import java.util.Map;
 public class LuckyColorService {
 
     private final LuckyColorScoringService luckyColorScoringService;
+    private final CustomerInteractionRepository interactionRepository;
 
-    public LuckyColorService(LuckyColorScoringService luckyColorScoringService) {
+    public LuckyColorService(LuckyColorScoringService luckyColorScoringService,
+                             CustomerInteractionRepository interactionRepository) {
         this.luckyColorScoringService = luckyColorScoringService;
+        this.interactionRepository = interactionRepository;
     }
 
     /**
@@ -79,6 +84,13 @@ public class LuckyColorService {
 
         List<ProductDTO> products = luckyColorScoringService
                 .recommend(req.birthWeekday(), req.luckyGoal(), 3);
+
+        if (req.luckyGoal() != null && !req.luckyGoal().isBlank()) {
+            CustomerInteraction interaction = new CustomerInteraction();
+            interaction.setEventType("LUCKY_COLOR_SEARCH");
+            interaction.setLuckyColor(req.luckyGoal());
+            interactionRepository.save(interaction);
+        }
 
         return new LuckyColorDTO.Result(colorName, hexes, reasoning, products);
     }

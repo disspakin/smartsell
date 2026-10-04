@@ -80,6 +80,8 @@ public class ChatService {
             products = productScoringService.recommendByPersonalColor(
                     session.getPersonalColor(),
                     session.getOccasion(),
+                    session.getBudgetMax(),
+                    session.getSize(),
                     3
             );
             // Save tracking for AI_RECOMMENDED

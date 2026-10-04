@@ -1,13 +1,11 @@
 package com.smartsell.service;
 
 import com.smartsell.dto.PersonalColorDTO;
-import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.PersonalColorResult;
 import com.smartsell.repository.PersonalColorResultRepository;
 import com.smartsell.repository.SeasonPaletteRepository;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,14 +14,11 @@ public class PersonalColorService {
 
     private final PersonalColorResultRepository resultRepository;
     private final SeasonPaletteRepository paletteRepository;
-    private final ProductScoringService productScoringService;
 
     public PersonalColorService(PersonalColorResultRepository resultRepository,
-                                 SeasonPaletteRepository paletteRepository,
-                                 ProductScoringService productScoringService) {
+                                 SeasonPaletteRepository paletteRepository) {
         this.resultRepository = resultRepository;
         this.paletteRepository = paletteRepository;
-        this.productScoringService = productScoringService;
     }
 
     // ================= MANUAL PATH =================
@@ -48,13 +43,9 @@ public class PersonalColorService {
                 .map(p -> new PersonalColorDTO.PaletteColor(p.getColorName(), p.getColorHex()))
                 .collect(Collectors.toList());
 
-        // Rulebase scoring — top 3 products, no occasion filter at this stage
-        List<ProductDTO> products = productScoringService
-                .recommendByPersonalColor(entity.getSeason(), null, 3);
-
         return new PersonalColorDTO.Result(
                 entity.getId(), entity.getSeason(), entity.getConfidence(),
-                entity.getReasoning(), palette, products
+                entity.getReasoning(), palette
         );
     }
 }

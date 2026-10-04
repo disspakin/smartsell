@@ -37,15 +37,48 @@ public class CustomerInteractionController {
         CustomerSession session = sessionRepository.findById(req.sessionId()).orElse(null);
         Product product = productRepository.findById(req.productId()).orElse(null);
 
-        if (session != null && product != null) {
-            CustomerInteraction interaction = new CustomerInteraction(
-                    session, product, req.eventType(),
-                    session.getPersonalColor(), session.getOccasion(),
-                    session.getLuckyGoal(), session.getSize(), session.getBudgetMax()
-            );
+        if (product != null) {
+            CustomerInteraction interaction;
+            if (session != null) {
+                interaction = new CustomerInteraction(
+                        session, product, req.eventType(),
+                        session.getPersonalColor(), session.getOccasion(),
+                        session.getLuckyGoal(), session.getSize(), session.getBudgetMax()
+                );
+            } else {
+                interaction = new CustomerInteraction(
+                        null, product, req.eventType(),
+                        null, null, null, null, null
+                );
+            }
             interactionRepository.save(interaction);
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();
+    }
+
+    public record RatingRequest(Long sessionId, String eventType, Integer rating) {}
+
+    @PostMapping("/rating")
+    public ResponseEntity<?> recordRating(@RequestBody RatingRequest req) {
+        if (req.rating() == null || req.rating() < 1 || req.rating() > 5) {
+            return ResponseEntity.badRequest().body("Rating must be between 1 and 5");
+        }
+        CustomerSession session = (req.sessionId() != null)
+                ? sessionRepository.findById(req.sessionId()).orElse(null)
+                : null;
+        CustomerInteraction interaction = new CustomerInteraction();
+        interaction.setSession(session);
+        interaction.setEventType(req.eventType() != null ? req.eventType() : "AI_RATING");
+        interaction.setRating(req.rating());
+        if (session != null) {
+            interaction.setPersonalColor(session.getPersonalColor());
+            interaction.setOccasion(session.getOccasion());
+            interaction.setLuckyColor(session.getLuckyGoal());
+            interaction.setSize(session.getSize());
+            interaction.setBudget(session.getBudgetMax());
+        }
+        interactionRepository.save(interaction);
+        return ResponseEntity.ok().build();
     }
 }

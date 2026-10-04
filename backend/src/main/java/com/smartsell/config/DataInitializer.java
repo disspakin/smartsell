@@ -61,7 +61,6 @@ public class DataInitializer implements CommandLineRunner {
         disableLegacyDemoAccount();
         seedUsers();
         seedProducts();
-        seedInteractions();
     }
 
     /**

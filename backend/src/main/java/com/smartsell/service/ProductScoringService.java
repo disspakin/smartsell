@@ -35,7 +35,7 @@ public class ProductScoringService {
      *   Color match (best variant) : 3 = exact/alias, 2 = partial, 1 = fallback
      *   Occasion match             : 3 = matched category, 0 = not matched
      */
-    public List<ProductDTO> recommendByPersonalColor(String season, String occasion, int topN) {
+    public List<ProductDTO> recommendByPersonalColor(String season, String occasion, java.math.BigDecimal budgetMax, String size, int topN) {
         if (season == null && occasion == null) {
             return List.of();
         }
@@ -43,6 +43,8 @@ public class ProductScoringService {
         List<Product> allProducts = productRepository.findAllWithVariants();
 
         List<ScoredProduct> scored = allProducts.stream()
+                .filter(p -> budgetMax == null || p.getPrice().compareTo(budgetMax) <= 0)
+                .filter(p -> size == null || p.getVariants().stream().anyMatch(v -> size.equalsIgnoreCase(v.getSize())))
                 .map(p -> {
                     int colorScore = bestVariantColorScore(p, targetColors);
                     int occasionScore = (occasion != null)

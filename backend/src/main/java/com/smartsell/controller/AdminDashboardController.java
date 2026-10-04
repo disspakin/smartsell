@@ -37,10 +37,15 @@ public class AdminDashboardController {
         long totalAiRecommends = interactionRepository.countByEventType("AI_RECOMMENDED");
 
         Double avgRating = interactionRepository.findAverageRating();
-        response.put("averageRating", avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 4.8);
+        response.put("averageRating", avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 0.0);
+
+        response.put("totalSessions", totalSessions);
+        response.put("totalViews", totalViews);
+        response.put("totalInterestedClicks", totalInterested);
 
         response.put("topInterestedProducts", formatProductList(interactionRepository.findTopInterestedProducts()));
         response.put("topRecommendedProducts", formatProductList(interactionRepository.findTopRecommendedProducts()));
+        response.put("topViewedProducts", formatProductList(interactionRepository.findTopViewedProducts()));
 
         return ResponseEntity.ok(response);
     }
@@ -54,18 +59,9 @@ public class AdminDashboardController {
         response.put("luckyColorBreakdown", formatGroupResults(interactionRepository.countByLuckyColorGroup()));
         response.put("sizeBreakdown", formatGroupResults(interactionRepository.countBySizeGroup()));
 
-        List<Object[]> topProductsRaw = interactionRepository.findTopInteractedProducts();
-        List<Map<String, Object>> topProducts = new ArrayList<>();
-        for (Object[] row : topProductsRaw) {
-            Map<String, Object> p = new HashMap<>();
-            p.put("productId", row[0]);
-            p.put("productName", row[1]);
-            p.put("interactionCount", row[2]);
-            topProducts.add(p);
-        }
-        response.put("topProducts", topProducts);
         response.put("topInterestedProducts", formatProductList(interactionRepository.findTopInterestedProducts()));
         response.put("topRecommendedProducts", formatProductList(interactionRepository.findTopRecommendedProducts()));
+        response.put("topViewedProducts", formatProductList(interactionRepository.findTopViewedProducts()));
 
         return ResponseEntity.ok(response);
     }
@@ -94,5 +90,23 @@ public class AdminDashboardController {
             }
         }
         return map;
+    }
+
+    @GetMapping("/products/analytics")
+    public ResponseEntity<List<Map<String, Object>>> getAllProductAnalytics() {
+        List<Object[]> rawList = interactionRepository.findAllProductAnalytics();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object[] row : rawList) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("productId", row[0]);
+            item.put("productName", row[1]);
+            item.put("imageUrl", row[2]);
+            item.put("price", row[3]);
+            item.put("viewCount", row[4]);
+            item.put("interestedCount", row[5]);
+            item.put("recommendedCount", row[6]);
+            result.add(item);
+        }
+        return ResponseEntity.ok(result);
     }
 }

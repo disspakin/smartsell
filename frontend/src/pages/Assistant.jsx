@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
 const SESSION_KEY = 'smartsell_assistant_session';
@@ -37,6 +37,7 @@ const INITIAL_MESSAGE = {
 };
 
 export default function Assistant() {
+  const navigate = useNavigate();
   const persisted = loadPersistedSession();
 
   const [sessionId, setSessionId] = useState(persisted?.sessionId ?? null);
@@ -109,7 +110,7 @@ export default function Assistant() {
     } else if (!preferences?.occasion) {
       quickReplies = ['ทั่วไป', 'เข้ากิจกรรม', 'ทางการ'];
     } else if (!preferences?.budget) {
-      quickReplies = ['ต่ำกว่า 350', '300 - 500', 'มากกว่า 500'];
+      quickReplies = ['ต่ำกว่า 350', '500', 'ไม่ระบุ'];
     } else if (!preferences?.size) {
       quickReplies = ['S', 'M', 'L', 'XL', 'XXL'];
     }
@@ -178,11 +179,7 @@ export default function Assistant() {
                   {m.products.map((p, i) => (
                     <div 
                       key={p.id} 
-                      onClick={() => {
-                        api.logInteraction({ sessionId, productId: p.id, eventType: 'INTERESTED_CLICK' });
-                        // Optionally open product details or link to it
-                        // window.location.href = `/products/${p.id}`;
-                      }}
+                      onClick={() => navigate(`/products/${p.id}`)}
                       style={{ width: 130, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
                     >
                       <div style={{ position: 'absolute', top: 6, left: 6, fontSize: 16, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}>

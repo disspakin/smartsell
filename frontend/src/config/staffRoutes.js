@@ -12,3 +12,4 @@ export const STAFF_LOGIN_PATH = '/staff-login-x7k2';
 export const STAFF_REGISTER_PATH = '/staff-register-x7k2';
 export const STAFF_RESET_PASSWORD_PATH = '/staff-reset-x7k2';
 export const STAFF_DASHBOARD_PATH = '/admin/dashboard';
+export const STAFF_PRODUCT_ANALYTICS_PATH = '/admin/products/analytics';

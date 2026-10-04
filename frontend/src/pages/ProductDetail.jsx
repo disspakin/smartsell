@@ -13,6 +13,19 @@ export default function ProductDetail() {
   const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
+    let sessionId = null;
+    try {
+      const sessionRaw = localStorage.getItem('smartsell_assistant_session');
+      if (sessionRaw) {
+        const data = JSON.parse(sessionRaw);
+        if (data && data.sessionId) {
+          sessionId = data.sessionId;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     api.getProduct(id).then((p) => {
       setProduct(p);
       const firstVariant = p.variants?.[0];
@@ -20,6 +33,14 @@ export default function ProductDetail() {
         setSelectedColor(firstVariant.color);
         setSelectedSize(firstVariant.size);
       }
+      
+      // บันทึกสถิติว่ามีการเข้ามา "VIEW" สินค้านี้
+      api.logInteraction({
+        sessionId,
+        productId: id,
+        eventType: 'VIEW'
+      }).catch(console.error);
+
     }).catch(console.error);
   }, [id]);
 
@@ -58,14 +79,38 @@ export default function ProductDetail() {
   }
 
   function handleSaveClick() {
-    setIsSaved((prev) => !prev);
-    // ขั้นตอนเข้า: mount ก่อน แล้วค่อย trigger transition ให้ fade เข้า
-    setShowToast(true);
-    requestAnimationFrame(() => setToastVisible(true));
+    const willSave = !isSaved;
+    setIsSaved(willSave);
+    
+    if (willSave) {
+      let sessionId = null;
+      try {
+        const sessionRaw = localStorage.getItem('smartsell_assistant_session');
+        if (sessionRaw) {
+          const data = JSON.parse(sessionRaw);
+          if (data && data.sessionId) {
+            sessionId = data.sessionId;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
 
-    // ขั้นตอนออก: fade ออกก่อน แล้วค่อย unmount จริง
-    setTimeout(() => setToastVisible(false), 1800);
-    setTimeout(() => setShowToast(false), 2100);
+      // บันทึกสถิติเมื่อลูกค้ากดถูกใจ (สนใจ)
+      api.logInteraction({
+        sessionId,
+        productId: id,
+        eventType: 'INTERESTED_CLICK'
+      }).catch(console.error);
+
+      // ขั้นตอนเข้า: mount ก่อน แล้วค่อย trigger transition ให้ fade เข้า
+      setShowToast(true);
+      requestAnimationFrame(() => setToastVisible(true));
+
+      // ขั้นตอนออก: fade ออกก่อน แล้วค่อย unmount จริง
+      setTimeout(() => setToastVisible(false), 1800);
+      setTimeout(() => setShowToast(false), 2100);
+    }
   }
 
   if (!product) return <div className="app" style={{ padding: 32 }}>กำลังโหลด...</div>;
