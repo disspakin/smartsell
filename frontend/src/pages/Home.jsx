@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import HomeTools, { HomeQuickActions } from '../components/HomeTools';
+import '../styles/home.css';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -25,6 +27,9 @@ export default function Home() {
           ✨ ให้ผู้ช่วย AI เลือกให้คุณ
         </div>
       </div>
+
+      <HomeQuickActions />
+      <HomeTools />
 
       <div style={{ padding: '0 32px 60px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 22 }}>
