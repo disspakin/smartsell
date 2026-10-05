@@ -1,5 +1,7 @@
 package com.smartsell.controller;
 
+import com.smartsell.entity.Product;
+import com.smartsell.entity.ProductVariant;
 import com.smartsell.repository.CustomerInteractionRepository;
 import com.smartsell.repository.CustomerSessionRepository;
 import com.smartsell.repository.ProductRepository;
@@ -67,6 +69,7 @@ public class AdminDashboardController {
     }
 
     private List<Map<String, Object>> formatProductList(List<Object[]> rawList) {
+        Map<Long, String> fallbackImages = variantImageFallbacks();
         List<Map<String, Object>> result = new ArrayList<>();
         int limit = Math.min(5, rawList.size());
         for (int i = 0; i < limit; i++) {
@@ -74,7 +77,7 @@ public class AdminDashboardController {
             Map<String, Object> item = new HashMap<>();
             item.put("productId", row[0]);
             item.put("productName", row[1]);
-            item.put("imageUrl", row[2]);
+            item.put("imageUrl", resolveImage(row[0], row[2], fallbackImages));
             item.put("price", row[3]);
             item.put("count", row[4]);
             result.add(item);
@@ -95,12 +98,13 @@ public class AdminDashboardController {
     @GetMapping("/products/analytics")
     public ResponseEntity<List<Map<String, Object>>> getAllProductAnalytics() {
         List<Object[]> rawList = interactionRepository.findAllProductAnalytics();
+        Map<Long, String> fallbackImages = variantImageFallbacks();
         List<Map<String, Object>> result = new ArrayList<>();
         for (Object[] row : rawList) {
             Map<String, Object> item = new HashMap<>();
             item.put("productId", row[0]);
             item.put("productName", row[1]);
-            item.put("imageUrl", row[2]);
+            item.put("imageUrl", resolveImage(row[0], row[2], fallbackImages));
             item.put("price", row[3]);
             item.put("viewCount", row[4]);
             item.put("interestedCount", row[5]);
@@ -108,5 +112,23 @@ public class AdminDashboardController {
             result.add(item);
         }
         return ResponseEntity.ok(result);
+    }
+
+    // product หลายตัวไม่มีรูประดับ product มีแต่รูปของ variant — ใช้รูปของ variant แรกแทน (เหมือน ProductDTO)
+    private Map<Long, String> variantImageFallbacks() {
+        Map<Long, String> map = new HashMap<>();
+        for (Product p : productRepository.findAllWithVariants()) {
+            p.getVariants().stream()
+                    .map(ProductVariant::getImageUrl)
+                    .filter(url -> url != null && !url.isBlank())
+                    .findFirst()
+                    .ifPresent(url -> map.put(p.getId(), url));
+        }
+        return map;
+    }
+
+    private String resolveImage(Object productId, Object imageUrl, Map<Long, String> fallbackImages) {
+        if (imageUrl instanceof String url && !url.isBlank()) return url;
+        return fallbackImages.get((Long) productId);
     }
 }

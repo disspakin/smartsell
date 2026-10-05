@@ -38,6 +38,13 @@ public class CustomerInteractionController {
         Product product = productRepository.findById(req.productId()).orElse(null);
 
         if (product != null) {
+            // กดถูกใจซ้ำใน session เดิมไม่นับเพิ่ม
+            if (session != null && "INTERESTED_CLICK".equals(req.eventType())
+                    && interactionRepository.existsBySessionIdAndProductIdAndEventType(
+                            session.getId(), product.getId(), "INTERESTED_CLICK")) {
+                return ResponseEntity.ok().build();
+            }
+
             CustomerInteraction interaction;
             if (session != null) {
                 interaction = new CustomerInteraction(

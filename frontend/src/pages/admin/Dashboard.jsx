@@ -314,11 +314,15 @@ export default function AdminDashboard() {
                       }}>
                         {idx + 1}
                       </div>
-                      <img
-                        src={p.imageUrl}
-                        alt={p.productName}
-                        style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                      />
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.productName}
+                          style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                        />
+                      ) : (
+                        <div style={{ width: '42px', height: '42px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>👕</div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.productName}
@@ -379,11 +383,15 @@ export default function AdminDashboard() {
                       }}>
                         {idx + 1}
                       </div>
-                      <img
-                        src={p.imageUrl}
-                        alt={p.productName}
-                        style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                      />
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.productName}
+                          style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                        />
+                      ) : (
+                        <div style={{ width: '42px', height: '42px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>👕</div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.productName}
@@ -444,11 +452,15 @@ export default function AdminDashboard() {
                       }}>
                         {idx + 1}
                       </div>
-                      <img
-                        src={p.imageUrl}
-                        alt={p.productName}
-                        style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                      />
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.productName}
+                          style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                        />
+                      ) : (
+                        <div style={{ width: '42px', height: '42px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>👕</div>
+                      )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {p.productName}

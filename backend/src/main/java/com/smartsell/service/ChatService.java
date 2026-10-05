@@ -80,12 +80,18 @@ public class ChatService {
             products = productScoringService.recommendByPersonalColor(
                     session.getPersonalColor(),
                     session.getOccasion(),
+                    session.getBudgetMin(),
                     session.getBudgetMax(),
                     session.getSize(),
                     3
             );
-            // Save tracking for AI_RECOMMENDED
+            // Save tracking for AI_RECOMMENDED — นับครั้งเดียวต่อ session ต่อสินค้า
+            // (ไม่งั้นทุกข้อความหลังเก็บ preference ครบจะบันทึกซ้ำอีก 3 แถว)
             for (ProductDTO pDto : products) {
+                if (customerInteractionRepository.existsBySessionIdAndProductIdAndEventType(
+                        session.getId(), pDto.id(), "AI_RECOMMENDED")) {
+                    continue;
+                }
                 com.smartsell.entity.Product product = productRepository.findById(pDto.id()).orElse(null);
                 if (product != null) {
                     com.smartsell.entity.CustomerInteraction interaction = new com.smartsell.entity.CustomerInteraction(

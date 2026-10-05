@@ -256,7 +256,9 @@ export default function AdminProductAnalytics() {
                 flexDirection: 'column'
               }}>
                 <div style={{ position: 'relative' }}>
-                  <img src={p.imageUrl} alt={p.productName} style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+                  {p.imageUrl
+                    ? <img src={p.imageUrl} alt={p.productName} style={{ width: '100%', height: '220px', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '220px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>👕</div>}
                   <div style={{
                     position: 'absolute', top: '12px', left: '12px',
                     backgroundColor: 'rgba(255,255,255,0.9)', padding: '4px 10px',

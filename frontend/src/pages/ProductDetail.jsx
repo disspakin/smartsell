@@ -2,17 +2,32 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
+// เก็บไว้ว่ากดถูกใจสินค้าไหนไปแล้ว — รีเฟรช/กดซ้ำจะได้ไม่นับ INTERESTED_CLICK เพิ่ม
+const LIKED_KEY = 'smartsell_liked_products';
+const COUNTED_KEY = 'smartsell_interested_counted';
+// ลำดับไซส์สำหรับเรียงปุ่ม ไซส์ที่ไม่อยู่ในนี้จะไปต่อท้าย
+const SIZE_ORDER = ['SS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+
+function loadIds(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || [];
+  } catch {
+    return [];
+  }
+}
+
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] = useState(() => loadIds(LIKED_KEY).includes(String(id)));
   const [showToast, setShowToast] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
+    setIsSaved(loadIds(LIKED_KEY).includes(String(id)));
     let sessionId = null;
     try {
       const sessionRaw = localStorage.getItem('smartsell_assistant_session');
@@ -81,8 +96,16 @@ export default function ProductDetail() {
   function handleSaveClick() {
     const willSave = !isSaved;
     setIsSaved(willSave);
-    
-    if (willSave) {
+
+    const liked = loadIds(LIKED_KEY).filter((x) => x !== String(id));
+    localStorage.setItem(LIKED_KEY, JSON.stringify(willSave ? [...liked, String(id)] : liked));
+
+    // นับ INTERESTED_CLICK แค่ครั้งแรกของสินค้านี้ — ยกเลิกแล้วกดใหม่ไม่นับซ้ำ
+    const counted = loadIds(COUNTED_KEY);
+    const shouldLog = willSave && !counted.includes(String(id));
+    if (shouldLog) localStorage.setItem(COUNTED_KEY, JSON.stringify([...counted, String(id)]));
+
+    if (shouldLog) {
       let sessionId = null;
       try {
         const sessionRaw = localStorage.getItem('smartsell_assistant_session');
@@ -102,7 +125,9 @@ export default function ProductDetail() {
         productId: id,
         eventType: 'INTERESTED_CLICK'
       }).catch(console.error);
+    }
 
+    if (willSave) {
       // ขั้นตอนเข้า: mount ก่อน แล้วค่อย trigger transition ให้ fade เข้า
       setShowToast(true);
       requestAnimationFrame(() => setToastVisible(true));
@@ -115,7 +140,12 @@ export default function ProductDetail() {
 
   if (!product) return <div className="app" style={{ padding: 32 }}>กำลังโหลด...</div>;
 
-  const ALL_SIZES = ['S', 'M', 'L', 'XL'];
+  const rank = (size) => {
+    const i = SIZE_ORDER.indexOf(size);
+    return i === -1 ? SIZE_ORDER.length : i;
+  };
+  const ALL_SIZES = [...new Set(product.variants.map((v) => v.size))]
+    .sort((a, b) => rank(a) - rank(b));
 
   return (
     <div className="app" style={{ padding: '36px 32px 60px' }}>
@@ -161,7 +191,7 @@ export default function ProductDetail() {
           <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>
             ไซส์: {selectedSize || '-'}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
             {ALL_SIZES.map((size) => {
               const available = sizesForSelectedColor.includes(size);
               const isSelected = selectedSize === size;

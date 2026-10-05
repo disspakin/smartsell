@@ -10,6 +10,8 @@ public interface CustomerInteractionRepository extends JpaRepository<CustomerInt
 
     long countByEventType(String eventType);
 
+    boolean existsBySessionIdAndProductIdAndEventType(Long sessionId, Long productId, String eventType);
+
     @Query("SELECT ci.personalColor, COUNT(ci) FROM CustomerInteraction ci WHERE ci.personalColor IS NOT NULL GROUP BY ci.personalColor")
     List<Object[]> countByPersonalColorGroup();
 
