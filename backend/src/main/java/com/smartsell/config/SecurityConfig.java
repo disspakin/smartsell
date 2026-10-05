@@ -42,6 +42,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
                                  "/api/auth/reset-password").permitAll()
 
+                // --- ทดสอบการส่งเมล (ชั่วคราว) ---
+                .requestMatchers(HttpMethod.GET, "/test-mail").permitAll()
+
                 // --- ต้องมี token ที่ใช้ได้ ---
                 .requestMatchers("/api/auth/me").authenticated()
 

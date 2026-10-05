@@ -35,3 +35,14 @@ app.seed.admin-password=
 app.ai.gemini-api-key=
 
 server.port=8080
+
+# ---- Mail (Gmail SMTP) ----
+# password ต้องเป็น App Password ของ Google (ต้องเปิด 2-Step Verification ก่อน)
+# สร้างที่ https://myaccount.google.com/apppasswords — ใช้รหัสผ่าน Gmail ปกติไม่ได้
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.starttls.required=true
+spring.mail.username=
+spring.mail.password=
