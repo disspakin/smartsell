@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 /**
- * การ์ดเครื่องมือในหน้าแรก (Personal Color / Size Chart / Body Analysis)
+ * การ์ดเครื่องมือในหน้าแรก (Personal Color / Size Chart)
  * children = ตัวอย่าง UI ของเครื่องมือนั้น ๆ
  */
 export default function ToolCard({ number, icon, title, description, linkText, to, children }) {

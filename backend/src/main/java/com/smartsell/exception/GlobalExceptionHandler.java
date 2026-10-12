@@ -47,6 +47,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ApiError> handleInvalidRequest(InvalidRequestException ex) {
+        ApiError body = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(InvalidOtpException.class)
+    public ResponseEntity<ApiError> handleInvalidOtp(InvalidOtpException ex) {
+        ApiError body = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiError> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        ApiError body = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), null, EmailNotVerifiedException.CODE);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     /** ถูก rate limit — แนบ Retry-After บอกจำนวนวินาทีที่ต้องรอตามมาตรฐาน HTTP */
     @ExceptionHandler(TooManyAttemptsException.class)
     public ResponseEntity<ApiError> handleTooManyAttempts(TooManyAttemptsException ex) {

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { formatMinPrice } from '../utils/price';
 
 const THAI_COLOR_HEX = {
   'แดง': '#c0392b', 'เขียว': '#4caf50', 'เหลือง': '#f1c40f', 'ฟ้า': '#3498db',
@@ -35,6 +37,7 @@ export default function LuckyColor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const resultRef = useRef(null);
+  const navigate = useNavigate();
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -42,6 +45,11 @@ export default function LuckyColor() {
       resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [result]);
+
+  function openProduct(p) {
+    const query = p.luckyColor ? `?color=${encodeURIComponent(p.luckyColor)}` : '';
+    navigate(`/products/${p.id}${query}`);
+  }
 
   function scrollProducts(direction) {
     if (scrollRef.current) {
@@ -59,6 +67,12 @@ export default function LuckyColor() {
         body: JSON.stringify({ sessionToken: getSessionToken(), birthWeekday: day, luckyGoal: goal }),
       });
       const data = await res.json();
+      // backend ตอบ 400 พร้อมข้อความเมื่อวันเกิด/เป้าหมายไม่ถูกต้อง — ห้ามเอา error body ไปแสดงเป็นผลลัพธ์
+      if (!res.ok) {
+        setResult(null);
+        setError(data?.error || 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+        return;
+      }
       setResult(data);
     } catch (e) {
       setError('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
@@ -191,10 +205,15 @@ export default function LuckyColor() {
                 {result.products.map((p) => (
                   <div
                     key={p.id}
+                    role="link"
+                    tabIndex={0}
+                    // เปิดหน้าสินค้าโดยเลือกสีมงคลไว้ให้ ไม่ต้องไปหาสีเอง
+                    onClick={() => openProduct(p)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') openProduct(p); }}
                     style={{
                       width: 150, flex: '0 0 auto', scrollSnapAlign: 'start',
                       background: '#fff', border: '1px solid var(--line)', borderRadius: 14,
-                      overflow: 'hidden', textAlign: 'left',
+                      overflow: 'hidden', textAlign: 'left', cursor: 'pointer',
                     }}
                   >
                     <div style={{ height: 110, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
@@ -204,7 +223,16 @@ export default function LuckyColor() {
                     </div>
                     <div style={{ padding: '10px 12px' }}>
                       <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 12, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 4 }}>{p.price} บาท</div>
+                      {p.luckyColor && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--ink)', marginTop: 5 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                            background: p.luckyColorHex || 'var(--line)', border: '1px solid rgba(0,0,0,.15)',
+                          }} />
+                          สีมงคล: {p.luckyColor}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 10.5, color: 'var(--text-dim)', marginTop: 4 }}>{formatMinPrice(p)}</div>
                     </div>
                   </div>
                 ))}

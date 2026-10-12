@@ -1,12 +1,16 @@
 package com.smartsell.controller;
 
 import com.smartsell.dto.AuthResponse;
+import com.smartsell.dto.ForgotPasswordRequest;
 import com.smartsell.dto.LoginRequest;
 import com.smartsell.dto.RegisterRequest;
+import com.smartsell.dto.ResendOtpRequest;
 import com.smartsell.dto.ResetPasswordRequest;
 import com.smartsell.dto.UserProfileResponse;
+import com.smartsell.dto.VerifyOtpRequest;
 import com.smartsell.entity.AppUser;
 import com.smartsell.service.AuthService;
+import com.smartsell.service.EmailOtpService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,14 +25,16 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailOtpService otpService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, EmailOtpService otpService) {
         this.authService = authService;
+        this.otpService = otpService;
     }
 
     /**
-     * สมัครบัญชี — ตอบกลับเป็นข้อมูลผู้ใช้ ไม่มี token
-     * ผู้สมัครต้องไปล็อกอินเองที่ /api/auth/login อีกครั้ง
+     * สมัครบัญชี — ตอบกลับเป็นข้อมูลผู้ใช้ ไม่มี token และส่ง OTP ไปที่อีเมล
+     * ผู้สมัครต้องยืนยันอีเมลที่ /api/auth/verify-otp แล้วค่อยล็อกอินที่ /api/auth/login
      */
     @PostMapping("/register")
     public ResponseEntity<UserProfileResponse> register(@Valid @RequestBody RegisterRequest request,
@@ -43,16 +49,42 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request, clientIpOf(httpRequest)));
     }
 
+    /** ยืนยันอีเมลด้วยรหัส OTP 6 หลัก — สำเร็จแล้วผู้ใช้ต้องไปล็อกอินเอง ไม่ออก token ให้ */
+    @PostMapping("/verify-otp")
+    public ResponseEntity<Map<String, String>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        otpService.verify(request.getEmail(), request.getCode());
+        return ResponseEntity.ok(Map.of("message", "ยืนยันอีเมลสำเร็จแล้ว กรุณาเข้าสู่ระบบ"));
+    }
+
     /**
-     * ตั้งรหัสผ่านใหม่ด้วย invite code — ตอบข้อความเดียวกันเสมอเมื่อ code ถูก
-     * ไม่ว่าอีเมลจะมีบัญชีหรือไม่ (ดูเหตุผลที่ AuthService.resetPassword)
+     * ขอรหัส OTP ใหม่ — ตอบข้อความเดียวกันไม่ว่าอีเมลจะมีบัญชีหรือไม่
+     * ขอถี่กว่า 60 วินาทีได้ 429 พร้อม Retry-After ให้หน้าเว็บใช้นับถอยหลัง
      */
-    @PostMapping("/reset-password")
-    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request,
-                                                             HttpServletRequest httpRequest) {
-        authService.resetPassword(request, clientIpOf(httpRequest));
+    @PostMapping("/resend-otp")
+    public ResponseEntity<Map<String, String>> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        otpService.resend(request.getEmail());
         return ResponseEntity.ok(Map.of("message",
-                "หากอีเมลนี้มีบัญชีอยู่ รหัสผ่านได้ถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"));
+                "หากอีเมลนี้มีบัญชีที่ยังไม่ได้ยืนยัน เราได้ส่งรหัสใหม่ไปแล้ว"));
+    }
+
+    /**
+     * ลืมรหัสผ่าน ขั้นที่ 1: ส่ง OTP ไปที่อีเมล — ตอบข้อความเดียวกันเสมอ
+     * ไม่ว่าอีเมลจะมีบัญชีหรือไม่ (ดูเหตุผลที่ AuthService.requestPasswordReset)
+     * ขอถี่กว่า 60 วินาทีได้ 429 พร้อม Retry-After ให้หน้าเว็บใช้นับถอยหลัง
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request,
+                                                              HttpServletRequest httpRequest) {
+        authService.requestPasswordReset(request.getEmail(), clientIpOf(httpRequest));
+        return ResponseEntity.ok(Map.of("message",
+                "หากอีเมลนี้มีบัญชีอยู่ เราได้ส่งรหัสสำหรับตั้งรหัสผ่านใหม่ไปแล้ว"));
+    }
+
+    /** ลืมรหัสผ่าน ขั้นที่ 2: ตรวจ OTP แล้วตั้งรหัสผ่านใหม่ */
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(Map.of("message", "ตั้งรหัสผ่านใหม่สำเร็จแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"));
     }
 
     /**

@@ -14,6 +14,9 @@ import java.util.Map;
  *   "error": "ข้อมูลที่กรอกไม่ถูกต้อง",
  *   "fieldErrors": { "email": "รูปแบบอีเมลไม่ถูกต้อง" }
  * }
+ *
+ * code เป็นตัวระบุชนิด error ที่หน้าเว็บใช้ตัดสินใจต่อ (เช่น EMAIL_NOT_VERIFIED)
+ * ใส่มาเฉพาะกรณีที่ status อย่างเดียวแยกไม่ออก
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiError {
@@ -22,19 +25,26 @@ public class ApiError {
     private final int status;
     private final String error;
     private final Map<String, String> fieldErrors;
+    private final String code;
 
     public ApiError(int status, String error) {
-        this(status, error, null);
+        this(status, error, null, null);
     }
 
     public ApiError(int status, String error, Map<String, String> fieldErrors) {
+        this(status, error, fieldErrors, null);
+    }
+
+    public ApiError(int status, String error, Map<String, String> fieldErrors, String code) {
         this.status = status;
         this.error = error;
         this.fieldErrors = fieldErrors;
+        this.code = code;
     }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public int getStatus() { return status; }
     public String getError() { return error; }
     public Map<String, String> getFieldErrors() { return fieldErrors; }
+    public String getCode() { return code; }
 }

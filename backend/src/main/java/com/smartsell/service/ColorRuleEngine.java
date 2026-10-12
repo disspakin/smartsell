@@ -26,16 +26,39 @@ public class ColorRuleEngine {
     // LUCKY COLOR RULES
     // day (วันเกิด) → list of auspicious colors (สีมงคล)
     // Source: ความเชื่อไทยดั้งเดิมเรื่องสีประจำวันเกิด
+    //
+    // ที่นี่คือที่เดียวที่กำหนดสีมงคล — ทั้งสีที่แสดงให้ลูกค้าเห็นและสีที่ใช้คัดสินค้า
+    // อ่านจาก list นี้ทั้งคู่ (ชื่อไทย/hex มาจาก LUCKY_COLOR_DISPLAY) จึงไม่มีทางไม่ตรงกัน
     // =====================================================================
     private static final Map<String, List<String>> LUCKY_COLOR_BY_DAY = Map.of(
         "อาทิตย์", List.of("Orange", "Red", "Pink", "Green", "White"),
         "จันทร์",  List.of("Green", "Black", "White", "Purple"),
-        "อังคาร",  List.of("Black", "Yellow", "Pink", "Purple", "Red"),
-        "พุธ",     List.of("Green", "Light Yellow", "Yellow"),
+        "อังคาร",  List.of("Black", "Yellow", "Pink", "Purple", "Red", "Vermilion"),
+        "พุธ",     List.of("Green", "Light Yellow", "Mustard"),
         "พฤหัส",  List.of("Orange", "Yellow", "Sky Blue", "Navy", "Green", "Red"),
-        "ศุกร์",   List.of("Sky Blue", "Navy", "White", "Yellow", "Pink"),
+        "ศุกร์",   List.of("Sky Blue", "Navy", "White", "Yellow", "Pink", "Vermilion"),
         "เสาร์",   List.of("Red", "Yellow", "Sky Blue", "Navy", "Pink", "Brown")
     );
+
+    /** ชื่อไทยและ hex สำหรับแสดงสีมงคลบนหน้าเว็บ — ทุกสีใน LUCKY_COLOR_BY_DAY ต้องมีอยู่ที่นี่ */
+    private static final Map<String, ColorDisplay> LUCKY_COLOR_DISPLAY = Map.ofEntries(
+        Map.entry("Orange",       new ColorDisplay("ส้ม", "#e07a3d")),
+        Map.entry("Red",          new ColorDisplay("แดง", "#c94f4f")),
+        Map.entry("Pink",         new ColorDisplay("ชมพู", "#e88fa8")),
+        Map.entry("Green",        new ColorDisplay("เขียว", "#6fa87f")),
+        Map.entry("White",        new ColorDisplay("ขาว", "#FFFFFF")),
+        Map.entry("Black",        new ColorDisplay("ดำ", "#1a1a1a")),
+        Map.entry("Purple",       new ColorDisplay("ม่วง", "#8f6fa8")),
+        Map.entry("Yellow",       new ColorDisplay("เหลือง", "#f4d35e")),
+        Map.entry("Vermilion",    new ColorDisplay("แสด", "#e05a20")),
+        Map.entry("Light Yellow", new ColorDisplay("เหลืองอ่อน", "#f0e68c")),
+        Map.entry("Mustard",      new ColorDisplay("เหลืองแก่", "#c9a800")),
+        Map.entry("Sky Blue",     new ColorDisplay("ฟ้า", "#6fa8c9")),
+        Map.entry("Navy",         new ColorDisplay("น้ำเงิน", "#1E3A8A")),
+        Map.entry("Brown",        new ColorDisplay("น้ำตาล", "#a0693a"))
+    );
+
+    public record ColorDisplay(String thaiName, String hex) {}
 
     // =====================================================================
     // GOAL-BASED LUCKY COLOR RULES
@@ -58,24 +81,27 @@ public class ColorRuleEngine {
     private static final Map<String, List<String>> COLOR_ALIASES = new LinkedHashMap<>() {{
         put("Black",       List.of("black", "ดำ", "สีดำ", "jet black", "charcoal"));
         put("White",       List.of("white", "ขาว", "สีขาว", "cream white", "off white", "ivory white"));
-        put("Navy",        List.of("navy", "navy blue", "dark blue", "น้ำเงิน", "น้ำเงินเข้ม", "กรมท่า", "สีน้ำเงิน"));
+        put("Navy",        List.of("navy", "navy blue", "dark blue", "น้ำเงิน", "น้ำเงินเข้ม", "กรม", "กรมท่า", "สีน้ำเงิน", "ยีนส์", "denim"));
         put("Sky Blue",    List.of("sky blue", "light blue", "ฟ้า", "สีฟ้า", "ฟ้าอ่อน", "baby blue", "powder blue"));
         put("Yellow",      List.of("yellow", "เหลือง", "สีเหลือง", "light yellow", "เหลืองอ่อน"));
+        put("Light Yellow", List.of("light yellow", "เหลืองอ่อน", "สีเหลืองอ่อน", "pale yellow"));
         put("Gold",        List.of("gold", "ทอง", "สีทอง", "golden", "เหลืองทอง", "navy gold"));
         put("Red",         List.of("red", "แดง", "สีแดง", "crimson", "scarlet"));
-        put("Pink",        List.of("pink", "ชมพู", "สีชมพู", "rose pink", "hot pink", "baby pink"));
-        put("Green",       List.of("green", "เขียว", "สีเขียว", "apple green", "dark green", "olive green"));
+        put("Pink",        List.of("pink", "ชมพู", "สีชมพู", "rose pink", "hot pink", "baby pink", "บานเย็น"));
+        put("Magenta",     List.of("magenta", "fuchsia", "บานเย็น", "สีบานเย็น"));
+        put("Green",       List.of("green", "เขียว", "สีเขียว", "apple green", "dark green", "olive green", "เขียวมะนาว", "lime"));
         put("Orange",      List.of("orange", "ส้ม", "สีส้ม", "burnt orange", "coral", "peach"));
+        put("Vermilion",   List.of("vermilion", "แสด", "สีแสด"));
         put("Purple",      List.of("purple", "ม่วง", "สีม่วง", "violet", "lavender", "indigo"));
-        put("Brown",       List.of("brown", "น้ำตาล", "สีน้ำตาล", "camel", "tan", "khaki", "rust"));
+        put("Brown",       List.of("brown", "น้ำตาล", "สีน้ำตาล", "camel", "tan", "khaki", "rust", "วอลนัท", "walnut"));
         put("Gray",        List.of("gray", "grey", "เทา", "สีเทา", "light gray", "charcoal gray"));
         put("Peach",       List.of("peach", "พีช", "สีพีช", "salmon", "apricot"));
-        put("Mustard",     List.of("mustard", "มัสตาร์ด", "dark yellow", "เหลืองมัสตาร์ด"));
-        put("Burgundy",    List.of("burgundy", "เบอร์กันดี", "wine", "maroon", "dark red"));
+        put("Mustard",     List.of("mustard", "มัสตาร์ด", "dark yellow", "เหลืองมัสตาร์ด", "เหลืองแก่"));
+        put("Burgundy",    List.of("burgundy", "เบอร์กันดี", "wine", "maroon", "dark red", "เลือดหมู", "แดงเลือดหมู", "mulberry", "มัลเบอรี่"));
         put("Lavender",    List.of("lavender", "ลาเวนเดอร์", "light purple", "lilac"));
-        put("Ivory",       List.of("ivory", "ครีม", "cream", "off-white", "beige"));
-        put("Olive",       List.of("olive", "มะกอก", "olive green", "dark olive"));
-        put("Coral",       List.of("coral", "คอรัล", "salmon pink"));
+        put("Ivory",       List.of("ivory", "ครีม", "cream", "off-white", "beige", "เบจ"));
+        put("Olive",       List.of("olive", "มะกอก", "olive green", "dark olive", "ขี้ม้า", "เขียวขี้ม้า"));
+        put("Coral",       List.of("coral", "คอรัล", "salmon pink", "โอรส"));
     }};
 
     // =====================================================================
@@ -96,6 +122,19 @@ public class ColorRuleEngine {
             return List.of();
         }
         return LUCKY_COLOR_BY_DAY.getOrDefault(day, List.of());
+    }
+
+    public boolean isKnownDay(String day) {
+        return day != null && LUCKY_COLOR_BY_DAY.containsKey(day);
+    }
+
+    public boolean isKnownGoal(String goal) {
+        return goal != null && LUCKY_COLOR_BY_GOAL.containsKey(goal);
+    }
+
+    /** ชื่อไทย + hex ของสีมงคลประจำวัน เรียงตามลำดับใน LUCKY_COLOR_BY_DAY */
+    public List<ColorDisplay> getLuckyColorDisplayByDay(String day) {
+        return getLuckyColorsByDay(day).stream().map(LUCKY_COLOR_DISPLAY::get).toList();
     }
 
     /** Return recommended colors for a given goal (เสริมด้านอะไร) */

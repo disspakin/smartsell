@@ -1,64 +1,37 @@
 package com.smartsell.service;
 
 import com.smartsell.dto.LuckyColorDTO;
-import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.CustomerInteraction;
+import com.smartsell.exception.InvalidRequestException;
 import com.smartsell.repository.CustomerInteractionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class LuckyColorService {
 
+    static final String EVENT_TYPE = "LUCKY_COLOR_SEARCH";
+
+    /** token ยาวกว่านี้ถือว่าไม่ใช่ token จากหน้าเว็บเรา (หน้าเว็บสุ่มยาวไม่ถึง 20 ตัว) */
+    private static final int MAX_TOKEN_LENGTH = 100;
+
     private final LuckyColorScoringService luckyColorScoringService;
+    private final ColorRuleEngine colorRuleEngine;
     private final CustomerInteractionRepository interactionRepository;
 
     public LuckyColorService(LuckyColorScoringService luckyColorScoringService,
+                             ColorRuleEngine colorRuleEngine,
                              CustomerInteractionRepository interactionRepository) {
         this.luckyColorScoringService = luckyColorScoringService;
+        this.colorRuleEngine = colorRuleEngine;
         this.interactionRepository = interactionRepository;
     }
 
-    /**
-     * DAY_COLOR — สีมงคลประจำวันเกิดแบบไทย
-     * index 0 = ชื่อสีรวม (display text)
-     * index 1..N = hex ของแต่ละสี (ครบตามจำนวนสีของวันนั้น)
-     *
-     * ข้อมูลอิงจาก rulebase สีมงคลที่นิยมใช้เรื่องการแต่งกายตามวันเกิด
-     */
-    private static final Map<String, String[]> DAY_COLOR = Map.of(
-        "อาทิตย์", new String[]{
-            "ส้ม / แดง / ชมพู / เขียว / ขาว",
-            "#e07a3d", "#c94f4f", "#e88fa8", "#6fa87f", "#FFFFFF"
-        },
-        "จันทร์", new String[]{
-            "เขียว / ดำ / ขาว / ม่วง",
-            "#6fa87f", "#1a1a1a", "#FFFFFF", "#8f6fa8"
-        },
-        "อังคาร", new String[]{
-            "ดำ / เหลือง / ชมพู / ม่วง / แดง / แสด",
-            "#1a1a1a", "#f4d35e", "#e88fa8", "#8f6fa8", "#c94f4f", "#e05a20"
-        },
-        "พุธ", new String[]{
-            "เขียว / เหลืองอ่อน / เหลืองแก่",
-            "#6fa87f", "#f0e68c", "#c9a800"
-        },
-        "พฤหัส", new String[]{
-            "ส้ม / เหลือง / ฟ้า / น้ำเงิน / เขียว / แดง",
-            "#e08a3d", "#f4d35e", "#6fa8c9", "#1E3A8A", "#6fa87f", "#c94f4f"
-        },
-        "ศุกร์", new String[]{
-            "ฟ้า / น้ำเงิน / ขาว / เหลือง / ชมพู / แสด",
-            "#6fa8c9", "#1E3A8A", "#FFFFFF", "#f4d35e", "#e88fa8", "#e05a20"
-        },
-        "เสาร์", new String[]{
-            "แดง / เหลือง / ฟ้า / น้ำเงิน / ชมพู / น้ำตาล",
-            "#c94f4f", "#f4d35e", "#6fa8c9", "#1E3A8A", "#e88fa8", "#a0693a"
-        }
-    );
+    // สีมงคลประจำวันเกิดอยู่ที่ ColorRuleEngine ที่เดียว ทั้งสีที่แสดงและสีที่ใช้คัดสินค้า
 
     private static final Map<String, String> GOAL_TEXT = Map.of(
             "การเรียน",   "ช่วยเสริมสมาธิและความจำในการเรียน",
@@ -69,29 +42,61 @@ public class LuckyColorService {
             "ความมั่นใจ", "ช่วยเสริมความมั่นใจในตัวเอง"
     );
 
+    @Transactional
     public LuckyColorDTO.Result compute(LuckyColorDTO.Request req) {
-        String[] colorInfo = DAY_COLOR.getOrDefault(req.birthWeekday(),
-                new String[]{"ฟ้า / ขาว", "#6fa8c9", "#FFFFFF"});
+        String day = trimToNull(req.birthWeekday());
+        String goal = trimToNull(req.luckyGoal());
 
-        String colorName = colorInfo[0];
-        // hex list = everything from index 1 onward
-        List<String> hexes = Arrays.asList(colorInfo).subList(1, colorInfo.length);
+        // ค่าผิดต้องบอกตรงๆ — เดิมวันที่ไม่รู้จักได้สีฟ้า/ขาวกลับไปเงียบๆ เหมือนเป็นคำตอบจริง
+        if (day == null) {
+            throw new InvalidRequestException("กรุณาเลือกวันเกิด");
+        }
+        if (!colorRuleEngine.isKnownDay(day)) {
+            throw new InvalidRequestException("ไม่รู้จักวันเกิด \"" + day + "\" กรุณาเลือกวันจันทร์ถึงอาทิตย์");
+        }
+        if (goal != null && !colorRuleEngine.isKnownGoal(goal)) {
+            throw new InvalidRequestException("ไม่รู้จักเป้าหมาย \"" + goal + "\"");
+        }
 
-        String goalText = GOAL_TEXT.getOrDefault(req.luckyGoal(), "ช่วยเสริมดวงโดยรวม");
-        String reasoning = "เกิดวัน" + req.birthWeekday()
-                + " สีมงคลที่เหมาะ ได้แก่ สี" + colorName
-                + " — " + goalText;
+        List<ColorRuleEngine.ColorDisplay> colors = colorRuleEngine.getLuckyColorDisplayByDay(day);
+        String colorName = colors.stream().map(ColorRuleEngine.ColorDisplay::thaiName).collect(Collectors.joining(" / "));
+        List<String> hexes = colors.stream().map(ColorRuleEngine.ColorDisplay::hex).toList();
 
-        List<ProductDTO> products = luckyColorScoringService
-                .recommend(req.birthWeekday(), req.luckyGoal(), 3);
+        String goalText = goal != null ? GOAL_TEXT.get(goal) : "ช่วยเสริมดวงโดยรวม";
+        String reasoning = "เกิดวัน" + day + " สีมงคลที่เหมาะ ได้แก่ สี" + colorName + " — " + goalText;
 
-        if (req.luckyGoal() != null && !req.luckyGoal().isBlank()) {
-            CustomerInteraction interaction = new CustomerInteraction();
-            interaction.setEventType("LUCKY_COLOR_SEARCH");
-            interaction.setLuckyColor(req.luckyGoal());
-            interactionRepository.save(interaction);
+        List<LuckyColorDTO.LuckyProduct> products = luckyColorScoringService.recommend(day, goal, 3);
+
+        if (goal != null) {
+            recordSearch(trimToNull(req.sessionToken()), goal);
         }
 
         return new LuckyColorDTO.Result(colorName, hexes, reasoning, products);
+    }
+
+    /**
+     * บันทึกว่ามีคนสนใจเสริมดวงด้านนี้ ให้การ์ด "Lucky Color Intentions" บน Dashboard
+     *
+     * นับครั้งเดียวต่อ token ต่อเป้าหมาย — กดดูผลซ้ำหรือเปลี่ยนวันเกิดไปมาจะไม่นับเพิ่ม
+     * คำขอที่ไม่มี token (เช่นยิง API ตรง) ยังนับทุกครั้ง เพราะไม่มีอะไรให้แยกว่าเป็นคนเดิม
+     */
+    private void recordSearch(String token, String goal) {
+        String clientToken = token != null && token.length() <= MAX_TOKEN_LENGTH ? token : null;
+        if (clientToken != null
+                && interactionRepository.existsByClientTokenAndEventTypeAndLuckyColor(clientToken, EVENT_TYPE, goal)) {
+            return;
+        }
+
+        CustomerInteraction interaction = new CustomerInteraction();
+        interaction.setEventType(EVENT_TYPE);
+        interaction.setLuckyColor(goal);
+        interaction.setClientToken(clientToken);
+        interactionRepository.save(interaction);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

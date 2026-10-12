@@ -2,25 +2,38 @@ package com.smartsell.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartsell.entity.AppUser;
+import com.smartsell.entity.OtpPurpose;
 import com.smartsell.repository.AppUserRepository;
 import com.smartsell.security.AuthThrottleService;
 import com.smartsell.security.JwtUtil;
 import com.smartsell.security.Roles;
+import com.smartsell.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -59,6 +72,10 @@ class AuthControllerIntegrationTest {
     @Autowired
     private AuthThrottleService throttleService;
 
+    /** ไม่ส่งเมลจริงระหว่างเทสต์ และใช้ดักรหัส OTP ที่ระบบส่งออกไป */
+    @MockBean
+    private EmailService emailService;
+
     /**
      * ตัวนับ rate limit เป็น bean ตัวเดียวที่ใช้ร่วมกันทุกเคส และ MockMvc ส่งคำขอ
      * จาก IP เดียวกันเสมอ ถ้าไม่ล้างก่อน เคสหลังๆ จะถูกล็อกจากคำขอของเคสก่อนหน้า
@@ -79,9 +96,44 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
-    /** สมัครแล้วล็อกอินต่อ เพราะ /register ไม่ออก token ให้แล้ว */
-    private String registerAndGetToken(String email) throws Exception {
+    /** รหัสยืนยันอีเมลล่าสุดที่ระบบส่งไปหาอีเมลนี้ */
+    private String lastOtpSentTo(String email) {
+        return lastOtpSentTo(email, OtpPurpose.VERIFY_EMAIL);
+    }
+
+    /** รหัส OTP ล่าสุดของงานที่ระบุที่ระบบส่งไปหาอีเมลนี้ */
+    private String lastOtpSentTo(String email, OtpPurpose purpose) {
+        ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
+        verify(emailService, atLeastOnce()).sendOtpEmail(eq(email), code.capture(), anyLong(), eq(purpose));
+        List<String> codes = code.getAllValues();
+        return codes.get(codes.size() - 1);
+    }
+
+    private ResultActions verifyOtp(String email, String code) throws Exception {
+        return mockMvc.perform(post("/api/auth/verify-otp")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", email, "code", code))));
+    }
+
+    private ResultActions resendOtp(String email) throws Exception {
+        return mockMvc.perform(post("/api/auth/resend-otp")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", email))));
+    }
+
+    /** OTP 6 หลักที่ไม่ตรงกับรหัสจริง */
+    private String wrongCodeFor(String realCode) {
+        return realCode.equals("000000") ? "111111" : "000000";
+    }
+
+    private void registerAndVerify(String email) throws Exception {
         register(email);
+        verifyOtp(email, lastOtpSentTo(email)).andExpect(status().isOk());
+    }
+
+    /** สมัคร ยืนยันอีเมล แล้วล็อกอินต่อ เพราะ /register ไม่ออก token ให้ */
+    private String registerAndGetToken(String email) throws Exception {
+        registerAndVerify(email);
 
         String body = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -275,76 +327,237 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ---------- POST /api/auth/reset-password ----------
+    // ---------- OTP ยืนยันอีเมล ----------
 
-    private org.springframework.test.web.servlet.ResultActions resetPassword(String email, String inviteCode,
-                                                                           String newPassword) throws Exception {
+    @Test
+    @DisplayName("สมัครแล้วต้องส่ง OTP 6 หลักไปที่อีเมล และบัญชียังไม่ยืนยัน")
+    void registerSendsOtpAndLeavesAccountUnverified() throws Exception {
+        register("otp@shop.com");
+
+        assertThat(lastOtpSentTo("otp@shop.com")).matches("\\d{6}");
+        assertThat(appUserRepository.findByEmail("otp@shop.com").orElseThrow().isEmailVerified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("ยังไม่ยืนยันอีเมลแล้วล็อกอินได้ 403 พร้อม code EMAIL_NOT_VERIFIED และไม่มี token")
+    void loginBeforeVerifyIsForbidden() throws Exception {
+        register("unverified@shop.com");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "unverified@shop.com", "password", "SuperSecret1"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"))
+                .andExpect(jsonPath("$.token").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("กรอก OTP ถูกแล้วล็อกอินได้ และใช้รหัสเดิมซ้ำไม่ได้")
+    void verifyOtpThenLoginSucceeds() throws Exception {
+        register("verify@shop.com");
+        String code = lastOtpSentTo("verify@shop.com");
+
+        verifyOtp("verify@shop.com", code).andExpect(status().isOk());
+        assertThat(appUserRepository.findByEmail("verify@shop.com").orElseThrow().isEmailVerified()).isTrue();
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "verify@shop.com", "password", "SuperSecret1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("OTP ผิดได้ 400 และบอกจำนวนครั้งที่เหลือ")
+    void verifyOtpRejectsWrongCode() throws Exception {
+        register("wrongotp@shop.com");
+        String wrong = wrongCodeFor(lastOtpSentTo("wrongotp@shop.com"));
+
+        verifyOtp("wrongotp@shop.com", wrong)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("รหัส OTP ไม่ถูกต้อง เหลือโอกาสอีก 4 ครั้ง"));
+    }
+
+    @Test
+    @DisplayName("กรอก OTP ผิดครบ 5 ครั้ง รหัสจริงก็ใช้ไม่ได้แล้ว")
+    void otpIsBurnedAfterFiveWrongAttempts() throws Exception {
+        register("burn@shop.com");
+        String code = lastOtpSentTo("burn@shop.com");
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            verifyOtp("burn@shop.com", wrongCodeFor(code)).andExpect(status().isBadRequest());
+        }
+
+        verifyOtp("burn@shop.com", code).andExpect(status().isBadRequest());
+        assertThat(appUserRepository.findByEmail("burn@shop.com").orElseThrow().isEmailVerified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("OTP ต้องเป็นตัวเลข 6 หลัก ไม่งั้นได้ 400 จาก validation")
+    void verifyOtpValidatesFormat() throws Exception {
+        verifyOtp("any@shop.com", "12ab")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.code").exists());
+    }
+
+    @Test
+    @DisplayName("ขอ OTP ใหม่ภายใน 60 วินาทีได้ 429 พร้อม Retry-After")
+    void resendOtpHasCooldown() throws Exception {
+        register("cooldown@shop.com");
+
+        resendOtp("cooldown@shop.com")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"));
+    }
+
+    @Test
+    @DisplayName("ขอ OTP ใหม่ให้อีเมลที่ไม่มีบัญชีได้ 200 ข้อความเดียวกัน และไม่ส่งเมล")
+    void resendOtpForUnknownEmailIsSilent() throws Exception {
+        resendOtp("nobody@shop.com")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").isNotEmpty());
+
+        verify(emailService, never()).sendOtpEmail(eq("nobody@shop.com"), anyString(), anyLong(), any());
+    }
+
+    // ---------- POST /api/auth/forgot-password + /api/auth/reset-password ----------
+
+    private ResultActions forgotPassword(String email) throws Exception {
+        return mockMvc.perform(post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", email))));
+    }
+
+    private ResultActions resetPassword(String email, String code, String newPassword) throws Exception {
         return mockMvc.perform(post("/api/auth/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("email", email, "inviteCode", inviteCode, "newPassword", newPassword))));
+                .content(json(Map.of("email", email, "code", code, "newPassword", newPassword))));
+    }
+
+    private ResultActions login(String email, String password) throws Exception {
+        return mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", email, "password", password))));
+    }
+
+    /**
+     * สมัคร ยืนยันอีเมล แล้วขอรหัสรีเซ็ต — ขอได้ทันทีโดยไม่ติด cooldown 60 วินาที
+     * เพราะยืนยันอีเมลสำเร็จแล้วรหัสเดิมถูกลบทิ้ง ไม่มีรหัสล่าสุดให้นับ cooldown
+     */
+    private void registerVerifyAndForget(String email) throws Exception {
+        registerAndVerify(email);
+        forgotPassword(email).andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("รีเซ็ตสำเร็จแล้วรหัสเก่าใช้ไม่ได้ รหัสใหม่ใช้ได้")
+    @DisplayName("ขอรหัสรีเซ็ตแล้วตั้งรหัสใหม่ได้ รหัสเก่าใช้ไม่ได้ รหัสใหม่ใช้ได้")
     void resetPasswordChangesPassword() throws Exception {
-        register("reset@shop.com");
+        registerVerifyAndForget("reset@shop.com");
+        String code = lastOtpSentTo("reset@shop.com", OtpPurpose.RESET_PASSWORD);
 
-        resetPassword("reset@shop.com", INVITE_CODE, "BrandNew123").andExpect(status().isOk());
+        resetPassword("reset@shop.com", code, "BrandNew123").andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("email", "reset@shop.com", "password", "SuperSecret1"))))
-                .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("email", "reset@shop.com", "password", "BrandNew123"))))
-                .andExpect(status().isOk());
+        login("reset@shop.com", "SuperSecret1").andExpect(status().isUnauthorized());
+        login("reset@shop.com", "BrandNew123").andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("รีเซ็ตด้วย invite code ผิดได้ 403 และรหัสเดิมยังใช้ได้")
-    void resetPasswordRejectsWrongInviteCode() throws Exception {
-        register("keep@shop.com");
+    @DisplayName("ใช้รหัสรีเซ็ตเดิมซ้ำไม่ได้")
+    void resetCodeIsSingleUse() throws Exception {
+        registerVerifyAndForget("once@shop.com");
+        String code = lastOtpSentTo("once@shop.com", OtpPurpose.RESET_PASSWORD);
 
-        resetPassword("keep@shop.com", "WRONG", "BrandNew123")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403));
+        resetPassword("once@shop.com", code, "BrandNew123").andExpect(status().isOk());
+        resetPassword("once@shop.com", code, "Another999").andExpect(status().isBadRequest());
+
+        login("once@shop.com", "BrandNew123").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("OTP ผิดได้ 400 และรหัสผ่านเดิมยังใช้ได้")
+    void resetPasswordRejectsWrongCode() throws Exception {
+        registerVerifyAndForget("keep@shop.com");
+        String wrong = wrongCodeFor(lastOtpSentTo("keep@shop.com", OtpPurpose.RESET_PASSWORD));
+
+        resetPassword("keep@shop.com", wrong, "BrandNew123")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("รหัส OTP ไม่ถูกต้อง เหลือโอกาสอีก 4 ครั้ง"));
 
         AppUser saved = appUserRepository.findByEmail("keep@shop.com").orElseThrow();
         assertThat(passwordEncoder.matches("SuperSecret1", saved.getPasswordHash())).isTrue();
     }
 
     @Test
-    @DisplayName("อีเมลที่มีกับไม่มีบัญชีต้องได้ response เหมือนกันทุกตัวอักษร")
-    void resetPasswordResponseDoesNotRevealAccountExistence() throws Exception {
-        register("real@shop.com");
+    @DisplayName("กรอกรหัสรีเซ็ตผิดครบ 5 ครั้ง รหัสจริงก็ใช้ไม่ได้ และรหัสผ่านเดิมยังใช้ได้")
+    void resetCodeIsBurnedAfterFiveWrongAttempts() throws Exception {
+        registerVerifyAndForget("burnreset@shop.com");
+        String code = lastOtpSentTo("burnreset@shop.com", OtpPurpose.RESET_PASSWORD);
 
-        String existing = resetPassword("real@shop.com", INVITE_CODE, "BrandNew123")
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            resetPassword("burnreset@shop.com", wrongCodeFor(code), "BrandNew123").andExpect(status().isBadRequest());
+        }
+
+        resetPassword("burnreset@shop.com", code, "BrandNew123").andExpect(status().isBadRequest());
+        login("burnreset@shop.com", "SuperSecret1").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("รหัสยืนยันอีเมลเอามาตั้งรหัสผ่านใหม่ไม่ได้")
+    void verifyEmailCodeCannotResetPassword() throws Exception {
+        register("cross@shop.com");
+        String verifyCode = lastOtpSentTo("cross@shop.com");
+
+        resetPassword("cross@shop.com", verifyCode, "BrandNew123").andExpect(status().isBadRequest());
+
+        AppUser saved = appUserRepository.findByEmail("cross@shop.com").orElseThrow();
+        assertThat(passwordEncoder.matches("SuperSecret1", saved.getPasswordHash())).isTrue();
+    }
+
+    @Test
+    @DisplayName("ไม่ต้องใช้ invite code แล้ว — รู้ invite code อย่างเดียวตั้งรหัสใหม่ให้บัญชีคนอื่นไม่ได้")
+    void inviteCodeNoLongerResetsPassword() throws Exception {
+        registerAndVerify("victim2@shop.com");
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "victim2@shop.com", "inviteCode", INVITE_CODE, "newPassword", "Hijacked123"))))
+                .andExpect(status().isBadRequest());
+
+        login("victim2@shop.com", "SuperSecret1").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ขอรหัสรีเซ็ต อีเมลที่มีกับไม่มีบัญชีต้องได้ response เหมือนกันทุกตัวอักษร")
+    void forgotPasswordResponseDoesNotRevealAccountExistence() throws Exception {
+        registerAndVerify("real@shop.com");
+
+        String existing = forgotPassword("real@shop.com")
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        String missing = resetPassword("ghost@shop.com", INVITE_CODE, "BrandNew123")
+        String missing = forgotPassword("ghost@shop.com")
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(missing).isEqualTo(existing);
+        verify(emailService, never()).sendOtpEmail(eq("ghost@shop.com"), anyString(), anyLong(), any());
     }
 
     @Test
     @DisplayName("รหัสใหม่สั้นกว่า 8 ตัวได้ 400 เหมือนตอนสมัคร")
     void resetPasswordEnforcesMinimumLength() throws Exception {
-        resetPassword("any@shop.com", INVITE_CODE, "short")
+        resetPassword("any@shop.com", "123456", "short")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.newPassword").isNotEmpty());
     }
 
     @Test
-    @DisplayName("รีเซ็ตอีเมลเดิมเกิน 5 ครั้งได้ 429")
-    void resetPasswordIsRateLimited() throws Exception {
+    @DisplayName("ขอรหัสรีเซ็ตอีเมลเดิมเกิน 5 ครั้งได้ 429")
+    void forgotPasswordIsRateLimited() throws Exception {
         for (int i = 1; i <= 5; i++) {
-            resetPassword("victim@shop.com", "WRONG", "BrandNew123").andExpect(status().isForbidden());
+            forgotPassword("victim@shop.com").andExpect(status().isOk());
         }
 
-        resetPassword("victim@shop.com", INVITE_CODE, "BrandNew123")
+        forgotPassword("victim@shop.com")
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"));
     }

@@ -10,6 +10,7 @@ import LuckyColor from './pages/LuckyColor';
 import StaffLogin from './pages/staff/Login';
 import StaffRegister from './pages/staff/Register';
 import StaffResetPassword from './pages/staff/ResetPassword';
+import StaffVerifyEmail from './pages/staff/VerifyEmail';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminProductAnalytics from './pages/admin/AdminProductAnalytics';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -18,6 +19,7 @@ import {
   STAFF_LOGIN_PATH,
   STAFF_REGISTER_PATH,
   STAFF_RESET_PASSWORD_PATH,
+  STAFF_VERIFY_EMAIL_PATH,
   STAFF_PRODUCT_ANALYTICS_PATH,
 } from './config/staffRoutes';
 
@@ -40,6 +42,7 @@ export default function App() {
           <Route path={STAFF_LOGIN_PATH} element={<StaffLogin />} />
           <Route path={STAFF_REGISTER_PATH} element={<StaffRegister />} />
           <Route path={STAFF_RESET_PASSWORD_PATH} element={<StaffResetPassword />} />
+          <Route path={STAFF_VERIFY_EMAIL_PATH} element={<StaffVerifyEmail />} />
           <Route
             path={STAFF_DASHBOARD_PATH}
             element={

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ToolCard from './ToolCard';
+import { EASE_INCHES, recommendSize } from './sizeRecommendation';
 
 const SEASONS = [
   { name: 'Spring', colors: ['#E8A27C', '#E8C65A', '#9CC98A'] },
@@ -9,16 +10,24 @@ const SEASONS = [
   { name: 'Winter', colors: ['#23358F', '#C0265A', '#1A1A1A'] },
 ];
 
-const SIZES = ['S', 'M', 'L', 'XL'];
+const CM_PER_INCH = 2.54;
 
-// รูปร่าง 5 แบบ วาดเป็นเส้นใน viewBox 24x40
-const BODY_SHAPES = [
-  { key: 'hourglass', label: 'นาฬิกาทราย', d: 'M5 4 H19 L13 20 L19 36 H5 L11 20 Z', active: true },
-  { key: 'pear', label: 'สามเหลี่ยม', d: 'M9 4 H15 L20 36 H4 Z' },
-  { key: 'inverted', label: 'สามเหลี่ยมกลับ', d: 'M4 4 H20 L15 36 H9 Z' },
-  { key: 'rectangle', label: 'สี่เหลี่ยม', d: 'M7 4 H17 V36 H7 Z' },
-  { key: 'oval', label: 'วงรี', d: 'M12 4 C18 4 19 13 19 20 C19 27 18 36 12 36 C6 36 5 27 5 20 C5 13 6 4 12 4 Z' },
+// ตัวอย่างสำหรับเดโมในการ์ดเท่านั้น — ค่าเดียวกับ size chart "T-Shirt คอกลม" ใน DB (หน่วยนิ้ว)
+// ถ้าร้านแก้ตารางนี้ใน DB ให้แก้ตรงนี้ตาม; ตารางจริงของแต่ละสินค้าอยู่ใน modal หน้าสินค้า
+const DEMO_ROWS = [
+  { size: 'SS', chestIn: 36, lengthIn: 25 },
+  { size: 'S', chestIn: 38, lengthIn: 26 },
+  { size: 'M', chestIn: 40, lengthIn: 27 },
+  { size: 'L', chestIn: 42, lengthIn: 28 },
+  { size: 'XL', chestIn: 44, lengthIn: 29 },
+  { size: '2XL', chestIn: 46, lengthIn: 30 },
+  { size: '3XL', chestIn: 48, lengthIn: 31 },
+  { size: '4XL', chestIn: 50, lengthIn: 32 },
 ];
+
+function toUnit(inches, unit) {
+  return unit === 'cm' ? Math.round(inches * CM_PER_INCH) : inches;
+}
 
 const svgProps = {
   width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none',
@@ -53,12 +62,80 @@ const icons = {
       <rect x="2.5" y="8" width="19" height="8" rx="1.5" /><path d="M6.5 8v3M10 8v4M13.5 8v3M17 8v4" />
     </svg>
   ),
-  body: (
-    <svg {...svgProps}>
-      <circle cx="12" cy="4.5" r="2" /><path d="M8 9h8l-1.5 5.5L16 21M8 9l1.5 5.5L8 21M10 14.5h4" />
-    </svg>
-  ),
 };
+
+/** เดโมในการ์ด Size Chart: กรอกรอบอก → ไฮไลต์ไซซ์ที่แนะนำ (logic เดียวกับ modal ตารางขนาด), กดไซซ์เพื่อดูขนาดเสื้อ */
+function SizeChartDemo() {
+  const [unit, setUnit] = useState('inch');
+  const [input, setInput] = useState('37');
+  const [picked, setPicked] = useState(null);
+
+  const unitLabel = unit === 'cm' ? 'ซม.' : 'นิ้ว';
+  const value = Number(input);
+  const hasValue = input.trim() !== '' && Number.isFinite(value) && value > 0;
+  const recommended = hasValue ? recommendSize(DEMO_ROWS, unit === 'cm' ? value / CM_PER_INCH : value) : null;
+  const shown = picked ? DEMO_ROWS.find((r) => r.size === picked) : null;
+
+  function switchUnit(next) {
+    if (next === unit) return;
+    // แปลงเลขที่กรอกไว้ตามหน่วยใหม่ (37 นิ้ว → 94 ซม.) ไม่ใช่ตีความเลขเดิมเป็นหน่วยใหม่
+    if (hasValue) setInput(String(Math.round(next === 'cm' ? value * CM_PER_INCH : value / CM_PER_INCH)));
+    setUnit(next);
+  }
+
+  let note;
+  if (shown) {
+    note = <>ไซซ์ <b>{shown.size}</b> · รอบอกเสื้อ {toUnit(shown.chestIn, unit)} ยาว {toUnit(shown.lengthIn, unit)} {unitLabel}</>;
+  } else if (!hasValue) {
+    note = 'กรอกรอบอกของคุณเพื่อดูไซซ์ที่แนะนำ';
+  } else if (!recommended) {
+    note = 'ไม่มีไซซ์ที่พอดี';
+  } else {
+    note = <>ไซซ์ที่แนะนำ: <b>{recommended.size}</b> · รอบอกเสื้อ {toUnit(recommended.chestIn, unit)} {unitLabel}</>;
+  }
+
+  return (
+    <>
+      <div className="tp-fields">
+        <div className="tp-field">
+          <label htmlFor="home-size-demo-chest">รอบอกของคุณ ({unitLabel})</label>
+          <input
+            id="home-size-demo-chest"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            value={input}
+            onChange={(e) => { setInput(e.target.value); setPicked(null); }}
+          />
+        </div>
+        <div className="tp-field">
+          <label>หน่วย · เผื่อหลวม {unit === 'cm' ? `${Math.round(EASE_INCHES * CM_PER_INCH)} ซม.` : `${EASE_INCHES} นิ้ว`}</label>
+          <div className="tp-units">
+            {[['inch', 'นิ้ว'], ['cm', 'ซม.']].map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={unit === key} className={unit === key ? 'active' : ''} onClick={() => switchUnit(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="tp-sizes">
+        {DEMO_ROWS.map((row) => (
+          <button
+            key={row.size}
+            type="button"
+            className={[row.size === recommended?.size ? 'active' : '', row.size === picked ? 'picked' : ''].join(' ').trim()}
+            aria-pressed={row.size === picked}
+            onClick={() => setPicked(row.size === picked ? null : row.size)}
+          >
+            {row.size}
+          </button>
+        ))}
+      </div>
+      <p className="tp-note" aria-live="polite">{note}</p>
+    </>
+  );
+}
 
 /** ปุ่มคู่ใต้ hero */
 export function HomeQuickActions() {
@@ -83,7 +160,7 @@ export default function HomeTools() {
     <div className="home-tools">
       <div className="home-tools-heading">
         <h2>รู้จักตัวเองก่อนเลือกซื้อ</h2>
-        <p>3 เครื่องมือที่ช่วยให้ทุกตัวที่ซื้อ ใส่แล้วพอดีและดูดีจริง</p>
+        <p>2 เครื่องมือที่ช่วยให้ทุกตัวที่ซื้อ ใส่แล้วพอดีและดูดีจริง</p>
       </div>
 
       <div className="home-tools-grid">
@@ -118,47 +195,18 @@ export default function HomeTools() {
           number="02"
           icon={icons.ruler}
           title="Size Chart อัจฉริยะ"
-          description="กรอกส่วนสูง น้ำหนัก รอบอก ระบบเทียบกับตารางไซซ์ของแต่ละสินค้า แล้วบอกไซซ์ที่พอดีที่สุด"
-          linkText="หาไซซ์ของฉัน"
-          to="/size-chart"
+          description="กด “ตารางขนาด” ในหน้าสินค้า ดูรอบอกและความยาวทุกไซซ์ เป็นนิ้วหรือ ซม. แล้วกรอกรอบอกของคุณ ระบบเผื่อหลวมให้ 2 นิ้วและแนะนำไซซ์ที่พอดี"
+          linkText="เลือกสินค้าแล้วดูไซซ์"
+          to="/products"
         >
-          <div className="tp-fields">
-            <div className="tp-field"><label>ส่วนสูง (ซม.)</label><span>170</span></div>
-            <div className="tp-field"><label>น้ำหนัก (กก.)</label><span>62</span></div>
-          </div>
-          <div className="tp-sizes">
-            {SIZES.map((size) => (
-              <span key={size} className={size === 'M' ? 'active' : ''}>{size}</span>
-            ))}
-          </div>
-          <p className="tp-note">ไซซ์ที่แนะนำ: <b>M</b> · ใส่สบาย ไม่รัด</p>
-        </ToolCard>
-
-        <ToolCard
-          number="03"
-          icon={icons.body}
-          title="Body Analysis"
-          description="กรอกสัดส่วนหรือเลือกรูปร่างที่ใกล้เคียง ระบบแนะนำทรงเสื้อและกางเกงที่ช่วยเสริมรูปร่างคุณ"
-          linkText="วิเคราะห์รูปร่าง"
-          to="/body-analysis"
-        >
-          <div className="tp-shapes">
-            {BODY_SHAPES.map((shape) => (
-              <div key={shape.key} className={`tp-shape ${shape.active ? 'active' : ''}`}>
-                <svg viewBox="0 0 24 40" width="18" height="30" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-                  <path d={shape.d} />
-                </svg>
-                <span>{shape.label}</span>
-              </div>
-            ))}
-          </div>
+          <SizeChartDemo />
         </ToolCard>
       </div>
 
       <div className="home-ai-banner">
         <div>
-          <h3>ทำครบ 3 อย่าง แล้วให้ AI จัดชุดให้</h3>
-          <p>บอกว่าวันนี้จะไปไหน ผู้ช่วย AI จะเลือกจากสินค้าที่ตรงสี ตรงไซซ์ และเข้ากับรูปร่างคุณ</p>
+          <h3>ทำครบ 2 อย่าง แล้วให้ AI จัดชุดให้</h3>
+          <p>บอกว่าวันนี้จะไปไหน ผู้ช่วย AI จะเลือกจากสินค้าที่ตรงสีและตรงไซซ์ของคุณ</p>
         </div>
         <button type="button" className="home-ai-banner-btn" onClick={() => navigate('/assistant')}>
           {icons.sparkle} คุยกับผู้ช่วย AI

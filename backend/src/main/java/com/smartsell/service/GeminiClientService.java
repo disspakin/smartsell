@@ -9,14 +9,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -31,16 +38,28 @@ public class GeminiClientService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    // Fallback models if API fetch fails (known good models)
+    private static final String API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+    /**
+     * ใช้เมื่อดึงรายชื่อ model จาก API ไม่ได้ — ต้องเป็น model ที่ยังเปิดให้ใช้จริง
+     * (ทดสอบแล้ว 2026-10-05: รุ่น 2.0/2.5 ถูกปิดสำหรับบัญชีใหม่ ตอบ 404 ทุกคำขอ)
+     */
     private static final List<String> FALLBACK_MODELS = List.of(
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b"
+        "gemini-3.8-flash",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite"
     );
 
-    // Will be populated dynamically from Google API at startup
-    private List<String> MODEL_CANDIDATES = new ArrayList<>(FALLBACK_MODELS);
+    /** model ที่ไม่ได้ทำมาเพื่อแชทข้อความ — มี generateContent ก็จริง แต่ตอบเป็นเสียง/รูป หรือใช้งานเฉพาะทาง */
+    private static final List<String> NON_CHAT_MODEL_KEYWORDS = List.of(
+        "tts", "image", "audio", "live", "embedding", "computer-use", "robotics", "customtools", "thinking-exp"
+    );
+
+    private static final Pattern MODEL_NAME = Pattern.compile("^gemini-(\\d+(?:\\.\\d+)?)-(flash|pro)(-lite)?(.*)$");
+
+    // ดึงจาก Google API ตอนเริ่มระบบ และตัด model ที่ตอบ 404 ทิ้งระหว่างใช้งาน
+    // หลาย request ใช้ list นี้พร้อมกัน จึงใช้ CopyOnWriteArrayList
+    private volatile List<String> MODEL_CANDIDATES = new CopyOnWriteArrayList<>(FALLBACK_MODELS);
 
     public GeminiClientService() {
         this.restTemplate = new RestTemplate();
@@ -48,66 +67,110 @@ public class GeminiClientService {
     }
 
     /**
-     * Fetches available Gemini models from Google API at startup and caches them.
-     * Filters to only flash/pro models that support generateContent.
-     * Falls back to FALLBACK_MODELS if API call fails.
+     * ดึงรายชื่อ model ที่ใช้ได้จาก Google ตอนเริ่มระบบ เก็บเฉพาะ flash/pro ที่ใช้แชทข้อความได้
+     * แล้วเรียงตัวที่น่าใช้ที่สุดขึ้นก่อน (ดู modelPriority) ถ้าดึงไม่ได้ใช้ FALLBACK_MODELS
      */
     @PostConstruct
     public void fetchAvailableModels() {
-        if (geminiApiKey == null || geminiApiKey.isBlank() || geminiApiKey.contains("YOUR_GEMINI_API_KEY")) {
-            log.warn("[GeminiClientService] API key not configured — using fallback model list.");
+        if (!isApiKeyConfigured()) {
+            log.warn("[GeminiClientService] ไม่ได้ตั้ง app.ai.gemini-api-key — แชทจะตอบด้วยกฎสำรองแทน AI");
             return;
         }
         try {
-            String url = "https://generativelanguage.googleapis.com/v1beta/models?key=" + geminiApiKey;
-            String responseStr = restTemplate.getForObject(url, String.class);
-            JsonNode root = objectMapper.readTree(responseStr);
-            JsonNode modelsNode = root.path("models");
+            ResponseEntity<String> response = restTemplate.exchange(
+                API_BASE + "?pageSize=1000", HttpMethod.GET, new HttpEntity<>(apiHeaders()), String.class);
+            JsonNode modelsNode = objectMapper.readTree(response.getBody()).path("models");
 
             List<String> fetchedModels = StreamSupport.stream(modelsNode.spliterator(), false)
-                .filter(m -> {
-                    // Only include models that support generateContent
-                    JsonNode methods = m.path("supportedGenerationMethods");
-                    boolean supportsGenerate = StreamSupport.stream(methods.spliterator(), false)
-                        .anyMatch(n -> "generateContent".equals(n.asText()));
-                    // Prefer flash/pro models only
-                    String name = m.path("name").asText("");
-                    boolean isFlashOrPro = name.contains("flash") || name.contains("pro");
-                    return supportsGenerate && isFlashOrPro;
-                })
+                .filter(m -> StreamSupport.stream(m.path("supportedGenerationMethods").spliterator(), false)
+                        .anyMatch(n -> "generateContent".equals(n.asText())))
                 .map(m -> {
-                    // name is like "models/gemini-2.0-flash" — strip prefix
+                    // name มาในรูป "models/gemini-3.8-flash" — ตัด prefix ออก
                     String fullName = m.path("name").asText("");
                     return fullName.startsWith("models/") ? fullName.substring(7) : fullName;
                 })
-                // Prioritize: newer flash first (2.x before 1.x), then pro, then rest
-                .sorted((a, b) -> {
-                    int scoreA = modelPriority(a);
-                    int scoreB = modelPriority(b);
-                    return Integer.compare(scoreB, scoreA); // descending
-                })
+                .filter(this::isChatModel)
+                .sorted(Comparator.comparingInt(this::modelPriority).reversed())
                 .collect(Collectors.toList());
 
             if (!fetchedModels.isEmpty()) {
-                MODEL_CANDIDATES = fetchedModels;
-                log.info("[GeminiClientService] Loaded {} models from API: {}", fetchedModels.size(), fetchedModels);
+                MODEL_CANDIDATES = new CopyOnWriteArrayList<>(fetchedModels);
+                log.info("[GeminiClientService] โหลด {} model จาก API, ลำดับแรกๆ: {}",
+                        fetchedModels.size(), fetchedModels.subList(0, Math.min(5, fetchedModels.size())));
             } else {
-                log.warn("[GeminiClientService] No models found from API — using fallback list.");
+                log.warn("[GeminiClientService] API ไม่มี model ที่ใช้แชทได้ — ใช้รายชื่อสำรอง {}", FALLBACK_MODELS);
             }
+        } catch (HttpStatusCodeException e) {
+            log.error("[GeminiClientService] ดึงรายชื่อ model ไม่ได้ ({}) — ตรวจสอบ app.ai.gemini-api-key: {}",
+                    e.getStatusCode(), shortError(e));
         } catch (Exception e) {
-            log.warn("[GeminiClientService] Failed to fetch models from API ({}), using fallback list.", e.getMessage());
+            log.warn("[GeminiClientService] ดึงรายชื่อ model ไม่ได้ ({}) — ใช้รายชื่อสำรอง {}",
+                    e.getClass().getSimpleName(), FALLBACK_MODELS);
         }
     }
 
-    /** Priority score for sorting models (higher = tried first) */
+    /** model สำหรับแชทข้อความเท่านั้น — ตัด tts/image/audio ฯลฯ ที่มี generateContent แต่ไม่ได้ตอบเป็นข้อความ */
+    private boolean isChatModel(String name) {
+        if (!name.startsWith("gemini-") || !(name.contains("flash") || name.contains("pro"))) return false;
+        return NON_CHAT_MODEL_KEYWORDS.stream().noneMatch(name::contains);
+    }
+
+    /**
+     * คะแนนสูง = ลองก่อน — ชนิดมาก่อน (flash > flash-lite > pro) แล้วค่อยดูรุ่น (ใหม่กว่าก่อน)
+     * รุ่น preview/exp ถูกหักคะแนนเล็กน้อยให้รุ่นเสถียรรุ่นเดียวกันมาก่อน
+     * ชื่อที่ไม่มีเลขรุ่น (เช่น gemini-flash-latest) ไว้ท้ายสุด เพราะไม่รู้ว่าชี้ไปรุ่นไหน
+     */
     private int modelPriority(String name) {
-        if (name.contains("2.0") && name.contains("flash") && !name.contains("lite")) return 100;
-        if (name.contains("2.0") && name.contains("flash-lite")) return 90;
-        if (name.contains("2.5") && name.contains("flash")) return 95;
-        if (name.contains("1.5") && name.contains("flash") && !name.contains("8b")) return 80;
-        if (name.contains("1.5") && name.contains("flash-8b")) return 70;
-        if (name.contains("pro")) return 60;
-        return 10;
+        Matcher m = MODEL_NAME.matcher(name);
+        if (!m.matches()) return 0;
+
+        int version = Math.round(Float.parseFloat(m.group(1)) * 100); // 3.8 → 380
+        boolean lite = m.group(3) != null;
+        int kind = "pro".equals(m.group(2)) ? 1 : (lite ? 2 : 3);
+        String suffix = m.group(4);
+        int unstablePenalty = suffix.contains("preview") || suffix.contains("exp") ? 5 : 0;
+
+        return kind * 10_000 + version - unstablePenalty;
+    }
+
+    /**
+     * ล้างสัญลักษณ์ markdown ที่หลุดมา — prompt สั่งห้ามแล้ว แต่ model ยังใส่มาบ้างเป็นครั้งคราว
+     * หน้าแชทแสดงข้อความดิบ ถ้าไม่ล้าง ลูกค้าจะเห็น ** และ # ติดมาในข้อความ
+     */
+    static String toChatText(String text) {
+        return text
+            .replaceAll("\\*\\*|__|`", "")              // ตัวหนา / code
+            .replaceAll("(?m)^\\s*#{1,6}\\s+", "")      // หัวข้อ
+            .replaceAll("(?m)^\\s*[-*•]\\s+", "")       // bullet
+            .replaceAll("(?m)^\\s*\\d+[.)]\\s+", "")   // เลขข้อ
+            .replaceAll("\\n{3,}", "\n\n")               // บรรทัดว่างซ้อน
+            .trim();
+    }
+
+    private boolean isApiKeyConfigured() {
+        return geminiApiKey != null && !geminiApiKey.isBlank() && !geminiApiKey.contains("YOUR_GEMINI_API_KEY");
+    }
+
+    /**
+     * ส่ง key ทาง header ไม่ใส่ใน URL — ถ้าอยู่ใน URL เวลาเกิด error ด้านเครือข่าย
+     * RestTemplate จะใส่ URL ทั้งเส้น (รวม key) ไว้ในข้อความ exception แล้วหลุดไปอยู่ใน log
+     */
+    private HttpHeaders apiHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", geminiApiKey);
+        return headers;
+    }
+
+    /** ดึงแค่ข้อความ error จาก Google มาใส่ log ไม่เอา body ทั้งก้อน */
+    private String shortError(HttpStatusCodeException e) {
+        try {
+            String message = objectMapper.readTree(e.getResponseBodyAsString()).path("error").path("message").asText("");
+            if (!message.isBlank()) return message.length() > 200 ? message.substring(0, 200) + "…" : message;
+        } catch (Exception ignored) {
+            // body ไม่ใช่ JSON — ใช้ status อย่างเดียว
+        }
+        return e.getStatusText();
     }
 
     private final String SHOPPING_ASSISTANT_PROMPT = """
@@ -117,19 +180,26 @@ public class GeminiClientService {
       ลำดับการถาม Preference มีเพียง 4 ด้านนี้เท่านั้น (ห้ามถามสีมงคล หรือ lucky_color โดยเด็ดขาด เพราะแยกฟีเจอร์ไปแล้ว):
       1. personal_color (Spring, Summer, Autumn, Winter)
       2. occasion (เช่น ทั่วไป, เข้ากิจกรรม, ทางการ)
-      3. budget_min / budget_max (เช่น ต่ำกว่า 350, 300 - 500, มากกว่า 500)
+      3. budget_min / budget_max (สินค้าในร้านราคา 150 - 250 บาท ตอนถามงบให้เสนอตัวเลือก ไม่เกิน 180 บาท, มากกว่า 200 บาท หรือไม่ระบุ
+         ห้ามเสนอช่วงราคาอื่นที่เกิน 250 บาท เช่น 350 หรือ 500
+         ไม่เกิน X = budget_min null, budget_max X / มากกว่า X = budget_min X, budget_max null
+         ไม่ระบุ หรือไม่จำกัดงบ = budget_min 0, budget_max null — ห้ามคืน null ทั้งคู่ เพราะระบบจะถือว่ายังไม่ได้ตอบ)
       4. size (เช่น S, M, L, XL, XXL)
       
       กฎสำคัญมาก:
       - ต้องสื่อสารและถาม-ตอบเป็น "ภาษาไทย" เท่านั้น ด้วยน้ำเสียงสุภาพและเป็นกันเอง (ลงท้ายด้วย ค่ะ/นะคะ)
       - ห้ามถามเรื่องสีมงคล หรือ lucky color เป็นอันขาด!
       - ถามเพียง 1 ข้อต่อครั้งตามลำดับข้างต้น
-      - อย่าสร้างคำถามนอกเหนือจาก 4 ข้อนี้
+      - อย่าสร้างคำถามนอกเหนือจาก 4 ข้อนี้ (ยกเว้นถามกลับว่าหมายถึงเสื้อตัวไหน ตอนลูกค้าถามเรื่องไซส์)
       
       - เมื่อได้ข้อมูลครบทั้ง 4 ด้านแล้ว ไม่ต้องถามคำถามเพิ่ม ให้แจ้งลูกค้าว่าได้ข้อมูลครบถ้วนแล้วและกำลังแนะนำสินค้าให้
       - อย่าแนะนำชื่อสินค้าหรือคำนวณคะแนนด้วยตนเอง (ระบบหลังบ้านจะแสดงสินค้าให้เอง)
-      - ตอบสั้นกระชับ เป็นธรรมชาติ
+      - ตอบสั้น 1-2 ประโยค เหมือนพนักงานร้านพิมพ์แชทคุยกับลูกค้า รับคำตอบลูกค้าสั้นๆ ก่อน แล้วค่อยถามข้อต่อไป
+      - ห้ามใช้ markdown หรือสัญลักษณ์จัดรูปแบบ (** __ # - * หรือเลขข้อ) ใน reply
       
+      คำถามเรื่องร้าน ไซส์ และสต็อก: ลูกค้าถามได้ทุกเมื่อ แม้ยังตอบ 4 ข้อไม่ครบ ให้ตอบตาม "กฎเรื่องร้าน" ท้าย prompt นี้
+      และห้ามต่อท้ายคำตอบเรื่องเหล่านี้ด้วยคำถาม preference (Personal Color ฯลฯ)
+
       กรณีพิเศษ — Personal Color:
       - ถ้าลูกค้าบอกว่า "ไม่รู้" Personal Color: ให้ตอบรับทราบอย่างสุภาพ และคง personal_color เป็น null เพื่อรอให้ลูกค้าตัดสินใจก่อน
         ห้าม set personal_color เป็น Unknown โดยเด็ดขาด! ระบบจะแสดงตัวเลือกให้ลูกค้าเลือกเองค่ะ
@@ -149,21 +219,69 @@ public class GeminiClientService {
       }
       """;
 
-    private final String PRODUCT_CHATBOT_PROMPT = """
-      คุณคือ SmartSell AI ผู้เชี่ยวชาญบริการลูกค้าและตอบคำถามสินค้าของร้านค้ามหาวิทยาลัย UTCC (บริการแชท 24 ชม.)
-      หน้าที่ของคุณคือ ตอบคำถามลูกค้าเกี่ยวกับสินค้าในร้านค้ามหาวิทยาลัย UTCC
-      
-      กฎเหล็กสำคัญที่สุด (ต้องปฏิบัติตามอย่างเคร่งครัด 100%):
-      1. คุณต้องตอบคำถามโดยอ้างอิงจากข้อมูลใน "PRODUCT CONTEXT (ข้อมูลจากฐานข้อมูลของร้านค้า)" เท่านั้น
-      2. หากลูกค้าถามคำถาม สินค้า เรื่อง หรือข้อมูลใดที่ไม่มีอยู่ใน PRODUCT CONTEXT หรือไม่มีในระบบฐานข้อมูล ให้ตอบอย่างสุภาพว่า:
-         "ขออภัยค่ะ ไม่มีข้อมูลเรื่องนี้ในระบบฐานข้อมูลของร้านค้าค่ะ"
-         ห้ามตอบสิ่งที่ไม่มีในฐานข้อมูล ห้ามแต่งเติม ห้ามเดาข้อมูลขึ้นมาเองโดยเด็ดขาด!
-      3. ต้องตอบเป็น "ภาษาไทย" เท่านั้น ด้วยน้ำเสียงสุภาพ นอบน้อม และเป็นมิตร (ลงท้ายด้วย ค่ะ/นะคะ)
-      4. ให้ตอบเป็นข้อความธรรมดา (ไม่ใช่ JSON) กระชับ ตรงประเด็น เข้าใจง่าย
+    /**
+     * กฎตอบเรื่องร้าน + คำถามนอกเรื่อง ใช้ร่วมกันทั้ง "ผู้ช่วย AI" และ "แชทกับเรา" — ต่อท้าย system prompt ตามด้วยข้อมูลร้าน
+     * (StoreInfoService) และตารางไซส์ (ChatService) ที่ดึงใหม่ทุกข้อความ
+     */
+    private static final String STORE_RULES = """
+
+      กฎเรื่องร้าน ไซส์ และสต็อก:
+      - ร้านนี้เป็นเว็บโชว์สินค้า ลูกค้าต้องมาซื้อที่ร้าน ไม่มีตะกร้าหรือสั่งซื้อออนไลน์
+      - เรื่องร้าน (ที่ตั้ง เบอร์โทร เวลาเปิด-ปิด และอื่นๆ) ตอบจาก "ข้อมูลร้าน" ท้าย prompt นี้เท่านั้น
+      - ถามว่าตอนนี้ร้านเปิดไหม ให้ตอบตาม "สถานะร้านตอนนี้" ห้ามคำนวณเวลาเอง
+      - ถ้าสิ่งที่ถามไม่มีในข้อมูลร้าน (เช่น ที่จอดรถ การจัดส่ง ช่องทางชำระเงิน) ให้ตอบว่า
+        "ขออภัย ยังไม่มีข้อมูลนี้ กรุณาติดต่อร้านที่เบอร์ <เบอร์โทรจากข้อมูลร้าน>" ห้ามเดา ห้ามแต่งข้อมูลเพิ่ม
+      - ถามว่ามีของไหม สต็อกเหลือไหม ไซส์/สีนี้ยังมีไหม ห้ามยืนยันว่ามีหรือหมด
+        ให้แนะนำโทรสอบถามร้านที่เบอร์ในข้อมูลร้านก่อนเดินทาง เพราะข้อมูลสต็อกในระบบยังไม่ใช่ของจริง
+      - เรื่องไซส์ ใช้ "ตารางไซส์ของสินค้า" ท้าย prompt นี้ ถ้าไม่รู้ว่าลูกค้าหมายถึงเสื้อตัวไหน ให้ถามกลับก่อน
+        ถ้าตารางนั้นมีป้าย [ค่าประมาณ ยังไม่ยืนยันจากร้าน] ต้องบอกลูกค้าด้วยว่าตัวเลขเป็นค่าประมาณ
+      - ถ้าลูกค้าถามเรื่องที่ไม่เกี่ยวกับสินค้า เสื้อผ้า การแต่งตัว หรือร้าน (เช่น สภาพอากาศ ข่าว การบ้าน คณิตศาสตร์ เรื่องทั่วไป)
+        ให้ตอบประโยคนี้เท่านั้น ห้ามตอบเนื้อหาเรื่องนั้น และห้ามเพิ่มอะไรต่อท้าย:
+        "ขออภัยค่ะ ไม่มีข้อมูลเรื่องนี้ในฐานระบบข้อมูลของร้านค้าค่ะ"
+        (เรื่องที่เกี่ยวกับร้านแต่ไม่มีข้อมูล เช่น ที่จอดรถ ให้ใช้ข้อความที่มีเบอร์โทรด้านบนแทน
+        ส่วนคำทักทาย และคำตอบของลูกค้าต่อคำถามที่ผู้ช่วยถามไป เช่น โทนสี โอกาส งบ ไซส์ ไม่ถือว่านอกเรื่อง)
+      - ตอบเฉพาะสิ่งที่ถาม สั้นๆ 1 ประโยค ห้ามแถมข้อมูลร้านเรื่องอื่นที่ไม่ได้ถาม
+        ตัวอย่าง: ลูกค้า "ร้านอยู่ไหน" → "ร้านอยู่ที่ตึก 15 ชั้น 1 ใกล้หอประชุมค่ะ"
+        (ตัวอย่างนี้แค่รูปแบบ ข้อมูลจริงให้ใช้จากข้อมูลร้านท้าย prompt เสมอ)
+
       """;
 
-    public AssistantResponse generateAssistantReply(List<ChatMessage> history, String newMessage) {
-        String jsonResponseStr = callGeminiAPI(SHOPPING_ASSISTANT_PROMPT, history, newMessage, null);
+    private static String withStoreContext(String prompt, String storeContext) {
+        return storeContext == null ? prompt : prompt + STORE_RULES + storeContext;
+    }
+
+    /** ตอบเมื่อเรียก Gemini ไม่สำเร็จ — คนละข้อความกับ "ไม่มีข้อมูลในระบบ" ที่ AI ตอบเองตอนหาไม่เจอ */
+    static final String AI_UNAVAILABLE_REPLY =
+        "ขออภัยค่ะ ระบบ AI ขัดข้องชั่วคราว ยังตอบคำถามไม่ได้ในตอนนี้ กรุณาลองใหม่อีกครั้งในอีกสักครู่นะคะ";
+
+    private final String PRODUCT_CHATBOT_PROMPT = """
+      คุณคือ SmartSell AI ทำหน้าที่เหมือนพนักงานหน้าร้านของร้านค้ามหาวิทยาลัย UTCC ที่คอยตอบแชทลูกค้า 24 ชม.
+      คุยกับลูกค้าเหมือนพนักงานร้านที่เป็นกันเองกำลังพิมพ์แชทตอบ ไม่ใช่เหมือนอ่านเอกสารหรือรายงาน
+
+      กฎเรื่องข้อมูล (สำคัญที่สุด ห้ามฝ่าฝืน):
+      1. ตอบจากข้อมูลใน PRODUCT CONTEXT (ข้อมูลจากฐานข้อมูลของร้าน) และข้อมูลร้าน/ตารางไซส์ท้าย prompt นี้เท่านั้น ห้ามแต่งเติม ห้ามเดาราคา สี ไซส์ หรือสินค้าที่ไม่มีในข้อมูล
+      2. ถ้าลูกค้าถามสิ่งที่ไม่มีในข้อมูล ให้บอกตรงๆ อย่างสุภาพว่าทางร้านยังไม่มีข้อมูลหรือสินค้านั้น
+         ถ้าในข้อมูลมีสินค้าที่ใกล้เคียงจริงๆ เสนอได้สั้นๆ แต่ถ้าไม่มี ไม่ต้องเสนออะไร
+
+      วิธีพูด:
+      - ภาษาไทย สุภาพแต่เป็นกันเอง ลงท้าย ค่ะ/นะคะ ตามธรรมชาติ ไม่ต้องลงท้ายทุกประโยค
+      - ตอบสั้น 1-3 ประโยค ตอบตรงสิ่งที่ถามก่อน แล้วค่อยเสริมเฉพาะที่จำเป็น
+      - ถ้าข้อมูลเยอะ (เช่น สีหรือรุ่นหลายแบบ) ให้สรุปภาพรวม แล้วถามต่อว่าลูกค้าสนใจแบบไหน แทนการไล่ครบทุกรายการ
+      - ห้ามใช้ markdown หรือสัญลักษณ์จัดรูปแบบ เช่น ** __ # - * หรือเลขข้อ 1. 2. ให้เขียนเป็นประโยคต่อเนื่องเหมือนพิมพ์แชท
+      - ถ้าต้องบอกหลายอย่างจริงๆ คั่นด้วยการขึ้นบรรทัดใหม่ได้ แต่ไม่ต้องใส่สัญลักษณ์นำหน้า
+      - ไม่ต้องขึ้นต้นด้วยการทักทายซ้ำทุกข้อความ และไม่ต้องพูดว่า "จากข้อมูลในระบบ" หรือ "ตามฐานข้อมูล"
+
+      ตัวอย่างน้ำเสียง:
+      ลูกค้า: มีเสื้อโปโลสีอะไรบ้าง
+      ตอบ: โปโลของร้านมีทั้งแบบชายและหญิงค่ะ ตัวละ 250 บาท มีสีขาว ดำ กรม เหลือง และเทาให้เลือก สนใจสีไหนเป็นพิเศษไหมคะ เดี๋ยวเช็คไซส์ให้ค่ะ
+      ลูกค้า: ร้านขายรองเท้าไหม
+      ตอบ: ตอนนี้ร้านยังไม่มีรองเท้าขายนะคะ จะมีแต่เสื้อผ้าเป็นหลักค่ะ
+      """;
+
+    /** storeContext = ข้อมูลร้าน เวลาเปิด เวลาตอนนี้ และตารางไซส์ (จาก ChatService) ต่อท้าย system prompt */
+    public AssistantResponse generateAssistantReply(List<ChatMessage> history, String newMessage, String storeContext) {
+        String systemPrompt = withStoreContext(SHOPPING_ASSISTANT_PROMPT, storeContext);
+        String jsonResponseStr = callGeminiAPI(systemPrompt, history, newMessage, null);
         
         if (jsonResponseStr != null && !jsonResponseStr.isBlank()) {
             try {
@@ -183,7 +301,7 @@ public class GeminiClientService {
                 JsonNode prefs = rootNode.has("preferences") ? rootNode.get("preferences") : null;
                 
                 AssistantResponse resp = new AssistantResponse();
-                resp.setReply(reply);
+                resp.setReply(toChatText(reply));
                 
                 if (prefs != null) {
                     if (prefs.has("personal_color") && !prefs.get("personal_color").isNull()) resp.setPersonalColor(prefs.get("personal_color").asText());
@@ -198,10 +316,11 @@ public class GeminiClientService {
                     return resp;
                 }
             } catch (Exception e) {
-                // Fallback to rule-based parser
+                log.warn("[GeminiClientService] แปลงคำตอบของ AI เป็น JSON ไม่ได้ ({}) — ใช้กฎสำรองแทน",
+                        e.getClass().getSimpleName());
             }
         }
-        
+
         // Smart rule-based extraction fallback (always in Thai and never asks lucky color)
         return handleFallback(newMessage);
     }
@@ -236,25 +355,28 @@ public class GeminiClientService {
         // 2. Occasion
         if (lower.contains("กิจกรรม") || lower.contains("ทั่วไป") || lower.contains("ทางการ") || lower.contains("เรียน") || lower.contains("เที่ยว") || lower.contains("ทำงาน") || lower.contains("casual") || lower.contains("formal")) {
             resp.setOccasion(newMessage.trim());
-            resp.setReply("บันทึกโอกาสการใช้งานเรียบร้อยค่ะ! คุณมีงบประมาณสำหรับการแต่งตัวครั้งนี้เท่าไหร่คะ? (เช่น ต่ำกว่า 350, 500, ไม่ระบุ)");
+            resp.setReply("บันทึกโอกาสการใช้งานเรียบร้อยค่ะ! คุณมีงบประมาณสำหรับการแต่งตัวครั้งนี้เท่าไหร่คะ? (เช่น ไม่เกิน 180, มากกว่า 200, ไม่ระบุ)");
             return resp;
         }
 
-        // 3. Budget
-        if (lower.contains("350") || lower.contains("ต่ำกว่า")) {
-            resp.setBudgetMin(0.0);
-            resp.setBudgetMax(350.0);
-            resp.setReply("บันทึกงบประมาณต่ำกว่า 350 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
-            return resp;
-        } else if (lower.contains("500")) {
-            resp.setBudgetMin(0.0);
-            resp.setBudgetMax(500.0);
-            resp.setReply("บันทึกงบประมาณ 500 บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
-            return resp;
-        } else if (lower.contains("ไม่ระบุ")) {
+        // 3. Budget — ตัวเลขแรกในข้อความคืองบ: "มากกว่า 200" เป็นงบขั้นต่ำ นอกนั้นเป็นงบสูงสุด (เช่น "ไม่เกิน 180")
+        if (lower.contains("ไม่ระบุ")) {
             resp.setBudgetMin(0.0);
             resp.setBudgetMax(99999.0);
             resp.setReply("รับทราบค่ะ ไม่จำกัดงบประมาณ คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+            return resp;
+        }
+        java.util.regex.Matcher budget = java.util.regex.Pattern.compile("\\d+").matcher(lower);
+        if (budget.find()) {
+            double amount = Double.parseDouble(budget.group());
+            if (lower.contains("มากกว่า")) {
+                resp.setBudgetMin(amount);
+                resp.setReply("บันทึกงบประมาณมากกว่า " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+            } else {
+                resp.setBudgetMin(0.0);
+                resp.setBudgetMax(amount);
+                resp.setReply("บันทึกงบประมาณไม่เกิน " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+            }
             return resp;
         }
         
@@ -271,16 +393,21 @@ public class GeminiClientService {
         return resp;
     }
 
-    public String generateSupportReply(List<ChatMessage> history, String newMessage, String productContext) {
-        String reply = callGeminiAPI(PRODUCT_CHATBOT_PROMPT, history, newMessage, productContext);
+    public String generateSupportReply(List<ChatMessage> history, String newMessage, String productContext, String storeContext) {
+        String reply = callGeminiAPI(withStoreContext(PRODUCT_CHATBOT_PROMPT, storeContext), history, newMessage, productContext);
         if (reply != null && !reply.isBlank()) {
-            return reply;
+            return toChatText(reply);
         }
-        return "ขออภัยค่ะ ไม่มีข้อมูลเรื่องนี้ในระบบฐานข้อมูลของร้านค้าค่ะ";
+        // ต้องต่างจากข้อความ "ไม่มีข้อมูลในระบบ" ที่ prompt สั่งให้ AI ใช้ ไม่งั้นแยกไม่ออกว่า AI ล่มหรือหาข้อมูลไม่เจอ
+        return AI_UNAVAILABLE_REPLY;
     }
 
+    /**
+     * ส่งข้อความไปให้ Gemini ไล่ลองทีละ model ตามลำดับใน MODEL_CANDIDATES
+     * คืน null เมื่อไม่มี model ไหนตอบได้ — ผู้เรียกต้องมีคำตอบสำรองเอง
+     */
     private String callGeminiAPI(String systemPrompt, List<ChatMessage> history, String newMessage, String context) {
-        if (geminiApiKey == null || geminiApiKey.isBlank() || geminiApiKey.contains("YOUR_GEMINI_API_KEY")) {
+        if (!isApiKeyConfigured()) {
             return null;
         }
 
@@ -316,11 +443,9 @@ public class GeminiClientService {
                 
                 requestBody.put("contents", contents);
                 
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-                
-                String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + geminiApiKey;
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, apiHeaders());
+
+                String url = API_BASE + "/" + modelName + ":generateContent";
                 String responseStr = restTemplate.postForObject(url, entity, String.class);
                 
                 // Parse response safely
@@ -331,6 +456,7 @@ public class GeminiClientService {
                     // Check finish reason - skip if SAFETY or RECITATION
                     String finishReason = firstCandidate.path("finishReason").asText("");
                     if ("SAFETY".equals(finishReason) || "RECITATION".equals(finishReason)) {
+                        log.info("[GeminiClientService] {} ไม่ตอบ (finishReason={}) — ลอง model ถัดไป", modelName, finishReason);
                         continue; // try next model
                     }
                     JsonNode textNode = firstCandidate.path("content").path("parts");
@@ -341,12 +467,29 @@ public class GeminiClientService {
                         }
                     }
                 }
-                // If we reach here, response was empty — try next model
-                
+                log.warn("[GeminiClientService] {} ตอบกลับมาว่าง — ลอง model ถัดไป", modelName);
+
+            } catch (HttpStatusCodeException e) {
+                int status = e.getStatusCode().value();
+                if (status == 401 || status == 403) {
+                    // key ผิด/ถูกบล็อก — ทุก model จะได้ผลเดียวกัน ลองต่อไปก็เสียเวลาเปล่า
+                    log.error("[GeminiClientService] Gemini ปฏิเสธ API key ({}): {} — ตรวจสอบ app.ai.gemini-api-key",
+                            status, shortError(e));
+                    return null;
+                }
+                if (status == 404) {
+                    // model ถูกปลดหรือปิดสำหรับบัญชีนี้ — ตัดทิ้ง ไม่ต้องลองซ้ำทุกข้อความ
+                    MODEL_CANDIDATES.remove(modelName);
+                    log.warn("[GeminiClientService] ตัด {} ออกจากรายชื่อ (404): {}", modelName, shortError(e));
+                } else {
+                    log.warn("[GeminiClientService] {} ตอบ {}: {} — ลอง model ถัดไป", modelName, status, shortError(e));
+                }
             } catch (Exception e) {
-                // Continue to next candidate model
+                log.warn("[GeminiClientService] เรียก {} ไม่สำเร็จ ({}) — ลอง model ถัดไป",
+                        modelName, e.getClass().getSimpleName());
             }
         }
+        log.error("[GeminiClientService] ไม่มี model ไหนตอบได้ (ลองแล้ว {} ตัว)", MODEL_CANDIDATES.size());
         return null;
     }
 

@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import HomeTools, { HomeQuickActions } from '../components/HomeTools';
 import '../styles/home.css';
+import { formatMinPrice } from '../utils/price';
+
+// การ์ดสินค้าแนะนำโชว์วงกลมสีไม่เกินเท่านี้ ที่เหลือแสดงเป็น +N
+const MAX_COLOR_DOTS = 6;
 
 export default function Home() {
   const [products, setProducts] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.getProducts().then(setProducts).catch(console.error);
+    api.getPopularProducts(6).then(setProducts).catch(console.error);
   }, []);
 
-  const featured = products.slice(0, 1);
+  // เรียงจากคนดูเยอะสุดมาแล้วจาก backend
+  const featured = products;
 
   return (
     <div className="app">
@@ -58,13 +63,14 @@ export default function Home() {
                     <div className="tone-tag"><span className="dot"></span>{p.category}</div>
                   )}
                   <h3>{p.name}</h3>
-                  <div className="price">{p.price} บาท</div>
+                  <div className="price">{formatMinPrice(p)}</div>
 
                   {colors.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      {colors.map((v) => (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                      {colors.slice(0, MAX_COLOR_DOTS).map((v) => (
                         <span
                           key={v.color}
+                          title={v.color}
                           style={{
                             width: 20, height: 20, borderRadius: '50%',
                             background: v.colorHex || '#ccc',
@@ -72,6 +78,11 @@ export default function Home() {
                           }}
                         />
                       ))}
+                      {colors.length > MAX_COLOR_DOTS && (
+                        <span style={{ height: 20, display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)' }}>
+                          +{colors.length - MAX_COLOR_DOTS}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

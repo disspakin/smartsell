@@ -30,11 +30,15 @@ public class CustomerInteractionController {
 
     @PostMapping
     public ResponseEntity<?> recordInteraction(@RequestBody InteractionRequest req) {
-        if (req.sessionId() == null || req.productId() == null || req.eventType() == null) {
+        // sessionId ไม่บังคับ — ลูกค้าที่ยังไม่เคยคุยกับผู้ช่วย AI ไม่มี session
+        // ถ้าบังคับ ยอด VIEW / INTERESTED_CLICK ของคนกลุ่มนี้จะหายจาก Dashboard ทั้งหมด
+        if (req.productId() == null || req.eventType() == null) {
             return ResponseEntity.badRequest().body("Missing required fields");
         }
 
-        CustomerSession session = sessionRepository.findById(req.sessionId()).orElse(null);
+        CustomerSession session = req.sessionId() != null
+                ? sessionRepository.findById(req.sessionId()).orElse(null)
+                : null;
         Product product = productRepository.findById(req.productId()).orElse(null);
 
         if (product != null) {

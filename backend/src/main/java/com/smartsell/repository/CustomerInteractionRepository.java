@@ -1,6 +1,7 @@
 package com.smartsell.repository;
 
 import com.smartsell.entity.CustomerInteraction;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -11,6 +12,8 @@ public interface CustomerInteractionRepository extends JpaRepository<CustomerInt
     long countByEventType(String eventType);
 
     boolean existsBySessionIdAndProductIdAndEventType(Long sessionId, Long productId, String eventType);
+
+    boolean existsByClientTokenAndEventTypeAndLuckyColor(String clientToken, String eventType, String luckyColor);
 
     @Query("SELECT ci.personalColor, COUNT(ci) FROM CustomerInteraction ci WHERE ci.personalColor IS NOT NULL GROUP BY ci.personalColor")
     List<Object[]> countByPersonalColorGroup();
@@ -40,6 +43,14 @@ public interface CustomerInteractionRepository extends JpaRepository<CustomerInt
 
     @Query("SELECT p.id, p.name, p.imageUrl, p.price, COUNT(ci) FROM CustomerInteraction ci JOIN ci.product p WHERE ci.eventType = 'VIEW' GROUP BY p.id, p.name, p.imageUrl, p.price ORDER BY COUNT(ci) DESC")
     List<Object[]> findTopViewedProducts();
+
+    // สินค้ายอดนิยมหน้าแรก: เรียงตามจำนวนคนเปิดดู (VIEW) แล้วตามจำนวนกดถูกใจ (INTERESTED_CLICK)
+    // LEFT JOIN ให้สินค้าที่ยังไม่มีใครดูต่อท้าย หน้าแรกจะได้ครบจำนวนเสมอ
+    @Query("SELECT p.id FROM Product p LEFT JOIN CustomerInteraction ci ON p.id = ci.product.id " +
+           "GROUP BY p.id " +
+           "ORDER BY SUM(CASE WHEN ci.eventType = 'VIEW' THEN 1 ELSE 0 END) DESC, " +
+           "SUM(CASE WHEN ci.eventType = 'INTERESTED_CLICK' THEN 1 ELSE 0 END) DESC, p.id")
+    List<Long> findProductIdsByPopularity(Pageable pageable);
 
     @Query("SELECT AVG(ci.rating) FROM CustomerInteraction ci WHERE ci.rating IS NOT NULL")
     Double findAverageRating();

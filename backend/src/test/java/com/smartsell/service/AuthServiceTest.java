@@ -5,9 +5,12 @@ import com.smartsell.dto.LoginRequest;
 import com.smartsell.dto.RegisterRequest;
 import com.smartsell.dto.ResetPasswordRequest;
 import com.smartsell.entity.AppUser;
+import com.smartsell.entity.OtpPurpose;
 import com.smartsell.exception.EmailAlreadyUsedException;
+import com.smartsell.exception.EmailNotVerifiedException;
 import com.smartsell.exception.InvalidCredentialsException;
 import com.smartsell.exception.InvalidInviteCodeException;
+import com.smartsell.exception.InvalidOtpException;
 import com.smartsell.exception.TooManyAttemptsException;
 import com.smartsell.repository.AppUserRepository;
 import com.smartsell.security.AuthThrottleService;
@@ -41,6 +44,9 @@ class AuthServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private EmailOtpService otpService;
+
     // ใช้ตัวเข้ารหัสจริงแทน mock เพื่อให้เทสต์ยืนยันได้ว่ารหัสผ่านถูก hash จริง
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -55,7 +61,7 @@ class AuthServiceTest {
         // ใช้ตัวจริงแทน mock เพื่อให้เทสต์ครอบคลุมการทำงานร่วมกับ rate limit ด้วย
         // สร้างใหม่ทุกเคส ตัวนับจึงไม่รั่วข้ามเทสต์
         throttleService = new AuthThrottleService();
-        authService = new AuthService(appUserRepository, passwordEncoder, jwtUtil, throttleService, INVITE_CODE);
+        authService = new AuthService(appUserRepository, passwordEncoder, jwtUtil, throttleService, otpService, INVITE_CODE);
     }
 
     private RegisterRequest registerRequest(String email, String password, String displayName) {
@@ -71,10 +77,10 @@ class AuthServiceTest {
         return request;
     }
 
-    private ResetPasswordRequest resetRequest(String email, String inviteCode, String newPassword) {
+    private ResetPasswordRequest resetRequest(String email, String code, String newPassword) {
         ResetPasswordRequest request = new ResetPasswordRequest();
         request.setEmail(email);
-        request.setInviteCode(inviteCode);
+        request.setCode(code);
         request.setNewPassword(newPassword);
         return request;
     }
@@ -92,6 +98,7 @@ class AuthServiceTest {
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setDisplayName("ร้านทดสอบ");
         user.setRole(role);
+        user.setEmailVerified(true);
         return user;
     }
 
@@ -156,6 +163,49 @@ class AuthServiceTest {
                 .isInstanceOf(EmailAlreadyUsedException.class);
 
         verify(appUserRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("สมัครแล้วบัญชีต้องยังไม่ยืนยันอีเมล และต้องออก OTP ให้บัญชีนั้น")
+    void registerCreatesUnverifiedUserAndIssuesOtp() {
+        when(appUserRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+
+        AppUser created = authService.register(registerRequest("owner@shop.com", "SuperSecret1", "ร้านทดสอบ"), CLIENT_IP);
+
+        assertThat(created.isEmailVerified()).isFalse();
+        verify(otpService).issueFor(created, OtpPurpose.VERIFY_EMAIL);
+    }
+
+    @Test
+    @DisplayName("สมัครไม่สำเร็จต้องไม่ส่ง OTP")
+    void failedRegisterDoesNotIssueOtp() {
+        assertThatThrownBy(() -> authService.register(registerRequest("owner@shop.com", "SuperSecret1", "ร้านทดสอบ", "WRONG"), CLIENT_IP))
+                .isInstanceOf(InvalidInviteCodeException.class);
+
+        verify(otpService, never()).issueFor(any(), any());
+    }
+
+    @Test
+    @DisplayName("รหัสผ่านถูกแต่ยังไม่ยืนยันอีเมลต้องไม่ออก token")
+    void loginRejectsUnverifiedEmail() {
+        AppUser user = existingUser("owner@shop.com", "SuperSecret1", Roles.STORE_MANAGER);
+        user.setEmailVerified(false);
+        when(appUserRepository.findByEmail("owner@shop.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(loginRequest("owner@shop.com", "SuperSecret1"), CLIENT_IP))
+                .isInstanceOf(EmailNotVerifiedException.class);
+        verify(jwtUtil, never()).generateToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("บัญชีที่ยังไม่ยืนยันแต่ใส่รหัสผิดต้องได้ข้อความรหัสผิดปกติ ไม่บอกว่ายังไม่ยืนยัน")
+    void loginWithWrongPasswordDoesNotRevealVerificationState() {
+        AppUser user = existingUser("owner@shop.com", "SuperSecret1", Roles.STORE_MANAGER);
+        user.setEmailVerified(false);
+        when(appUserRepository.findByEmail("owner@shop.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(loginRequest("owner@shop.com", "WrongPassword"), CLIENT_IP))
+                .isInstanceOf(InvalidCredentialsException.class);
     }
 
     @Test
@@ -291,74 +341,70 @@ class AuthServiceTest {
     @Test
     @DisplayName("ถ้าไม่ได้ตั้ง invite code ฝั่ง server ต้องปฏิเสธทุกคำขอ แม้ส่งค่าว่างมา")
     void blankServerInviteCodeRejectsEverything() {
-        AuthService unconfigured = new AuthService(appUserRepository, passwordEncoder, jwtUtil, throttleService, "");
+        AuthService unconfigured = new AuthService(appUserRepository, passwordEncoder, jwtUtil, throttleService, otpService, "");
 
         assertThatThrownBy(() -> unconfigured.register(registerRequest("a@shop.com", "SuperSecret1", "ร้าน", ""), CLIENT_IP))
-                .isInstanceOf(InvalidInviteCodeException.class);
-        assertThatThrownBy(() -> unconfigured.resetPassword(resetRequest("a@shop.com", "", "NewSecret99"), CLIENT_IP))
                 .isInstanceOf(InvalidInviteCodeException.class);
     }
 
     // ---------- reset password ----------
 
     @Test
-    @DisplayName("รีเซ็ตด้วย invite code ถูกต้องต้องเก็บรหัสใหม่เป็น BCrypt hash")
-    void resetPasswordUpdatesHash() {
-        AppUser user = existingUser("owner@shop.com", "OldSecret1", Roles.STORE_MANAGER);
-        when(appUserRepository.findByEmail("owner@shop.com")).thenReturn(Optional.of(user));
+    @DisplayName("ขอรหัสรีเซ็ตต้องส่งต่อให้ EmailOtpService ด้วยอีเมลที่ normalize แล้ว")
+    void requestPasswordResetDelegatesToOtpService() {
+        authService.requestPasswordReset("  Owner@Shop.com ", CLIENT_IP);
 
-        authService.resetPassword(resetRequest("Owner@Shop.com", INVITE_CODE, "NewSecret99"), CLIENT_IP);
+        verify(otpService).requestPasswordReset("owner@shop.com");
+    }
+
+    @Test
+    @DisplayName("ขอรหัสรีเซ็ตอีเมลเดิมเกินโควตาต้องถูกล็อกชั่วคราว แม้จะเปลี่ยน IP")
+    void requestPasswordResetIsRateLimitedPerEmail() {
+        for (int i = 1; i <= 5; i++) {
+            authService.requestPasswordReset("owner@shop.com", CLIENT_IP);
+        }
+
+        assertThatThrownBy(() -> authService.requestPasswordReset("owner@shop.com", "198.51.100.7"))
+                .isInstanceOf(TooManyAttemptsException.class);
+        verify(otpService, times(5)).requestPasswordReset("owner@shop.com");
+    }
+
+    @Test
+    @DisplayName("ขอรหัสรีเซ็ตจาก IP เดิมเกินโควตาต้องถูกล็อก แม้จะสลับอีเมลไปเรื่อยๆ")
+    void requestPasswordResetIsRateLimitedPerIp() {
+        for (int i = 1; i <= 10; i++) {
+            authService.requestPasswordReset("shop" + i + "@test.com", CLIENT_IP);
+        }
+
+        assertThatThrownBy(() -> authService.requestPasswordReset("fresh@test.com", CLIENT_IP))
+                .isInstanceOf(TooManyAttemptsException.class);
+    }
+
+    @Test
+    @DisplayName("OTP ถูกต้องแล้วต้องเก็บรหัสใหม่เป็น BCrypt hash และถือว่ายืนยันอีเมลแล้ว")
+    void resetPasswordUpdatesHashAndVerifiesEmail() {
+        AppUser user = existingUser("owner@shop.com", "OldSecret1", Roles.STORE_MANAGER);
+        user.setEmailVerified(false);
+        when(otpService.consumePasswordReset("owner@shop.com", "123456")).thenReturn(user);
+
+        authService.resetPassword(resetRequest("owner@shop.com", "123456", "NewSecret99"));
 
         verify(appUserRepository).save(user);
         assertThat(user.getPasswordHash()).startsWith("$2a$");
         assertThat(passwordEncoder.matches("NewSecret99", user.getPasswordHash())).isTrue();
         assertThat(passwordEncoder.matches("OldSecret1", user.getPasswordHash())).isFalse();
+        assertThat(user.isEmailVerified()).isTrue();
     }
 
     @Test
-    @DisplayName("รีเซ็ตด้วย invite code ผิดต้องถูกปฏิเสธโดยไม่แตะฐานข้อมูล")
-    void resetPasswordRejectsWrongInviteCode() {
-        assertThatThrownBy(() -> authService.resetPassword(resetRequest("owner@shop.com", "WRONG", "NewSecret99"), CLIENT_IP))
-                .isInstanceOf(InvalidInviteCodeException.class);
+    @DisplayName("OTP ผิดต้องไม่เปลี่ยนรหัสผ่าน")
+    void resetPasswordWithWrongOtpKeepsPassword() {
+        when(otpService.consumePasswordReset("owner@shop.com", "000000"))
+                .thenThrow(new InvalidOtpException("รหัส OTP ไม่ถูกต้อง เหลือโอกาสอีก 4 ครั้ง"));
 
-        verify(appUserRepository, never()).findByEmail(anyString());
+        assertThatThrownBy(() -> authService.resetPassword(resetRequest("owner@shop.com", "000000", "NewSecret99")))
+                .isInstanceOf(InvalidOtpException.class);
         verify(appUserRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("รีเซ็ตอีเมลที่ไม่มีบัญชีต้องไม่ error ผู้เรียกจึงแยกไม่ออกว่ามีบัญชีหรือไม่")
-    void resetPasswordForUnknownEmailIsSilent() {
-        when(appUserRepository.findByEmail("ghost@shop.com")).thenReturn(Optional.empty());
-
-        authService.resetPassword(resetRequest("ghost@shop.com", INVITE_CODE, "NewSecret99"), CLIENT_IP);
-
-        verify(appUserRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("รีเซ็ตอีเมลเดิมเกินโควตาต้องถูกล็อกชั่วคราว")
-    void resetPasswordIsRateLimitedPerEmail() {
-        for (int i = 1; i <= 5; i++) {
-            assertThatThrownBy(() -> authService.resetPassword(resetRequest("owner@shop.com", "WRONG", "NewSecret99"), CLIENT_IP))
-                    .isInstanceOf(InvalidInviteCodeException.class);
-        }
-
-        // แม้เปลี่ยน IP แล้วใส่ code ถูก ก็ยังถูกล็อกตามอีเมล
-        assertThatThrownBy(() -> authService.resetPassword(resetRequest("owner@shop.com", INVITE_CODE, "NewSecret99"), "198.51.100.7"))
-                .isInstanceOf(TooManyAttemptsException.class);
-    }
-
-    @Test
-    @DisplayName("รีเซ็ตจาก IP เดิมเกินโควตาต้องถูกล็อก แม้จะสลับอีเมลไปเรื่อยๆ")
-    void resetPasswordIsRateLimitedPerIp() {
-        for (int i = 1; i <= 10; i++) {
-            String email = "shop" + i + "@test.com";
-            assertThatThrownBy(() -> authService.resetPassword(resetRequest(email, "WRONG", "NewSecret99"), CLIENT_IP))
-                    .isInstanceOf(InvalidInviteCodeException.class);
-        }
-
-        assertThatThrownBy(() -> authService.resetPassword(resetRequest("fresh@test.com", INVITE_CODE, "NewSecret99"), CLIENT_IP))
-                .isInstanceOf(TooManyAttemptsException.class);
     }
 
     private String catchMessage(Runnable action) {

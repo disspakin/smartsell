@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { formatMinPrice } from '../utils/price';
 
 const SESSION_KEY = 'smartsell_assistant_session';
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -35,6 +36,62 @@ const INITIAL_MESSAGE = {
   content: 'สวัสดีค่ะ! ฉันคือ SmartSell AI ✨ เพื่อช่วยแนะนำชุดที่เหมาะกับคุณที่สุด ขอถาม Personal Color ก่อนนะคะ — โทนสีของคุณเป็นแบบไหนคะ?',
   products: [],
 };
+
+const MAX_SWATCHES = 6;
+
+/**
+ * การ์ดสินค้าแนะนำ — ถ้าสินค้ามีหลายสีที่เข้ากับ personal color จะแสดงจุดสีให้กดเปลี่ยนรูปได้
+ * กดการ์ดแล้วเปิดหน้าสินค้าโดยเลือกสีที่กำลังดูอยู่ไว้ให้
+ */
+function RecommendedProductCard({ product: p, rank, onOpen }) {
+  const matched = p.matchedColors || [];
+  const [selected, setSelected] = useState(matched[0] || null);
+  const imageUrl = selected?.imageUrl || p.imageUrl;
+  const extra = matched.length - MAX_SWATCHES;
+
+  return (
+    <div
+      onClick={() => onOpen(p.id, selected?.color)}
+      style={{ width: 130, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
+    >
+      <div style={{ position: 'absolute', top: 6, left: 6, fontSize: 16, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}>
+        {['🥇', '🥈', '🥉'][rank]}
+      </div>
+      <div style={{ height: 90, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
+        {imageUrl
+          ? <img src={imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>👕</div>
+        }
+      </div>
+      <div style={{ padding: '8px 10px' }}>
+        <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 10.5, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>{formatMinPrice(p)}</div>
+        {matched.length > 0 && (
+          <>
+            <div style={{ fontSize: 9.5, color: 'var(--text-dim)', marginTop: 6 }}>
+              {matched.length > 1 ? `สีที่เข้ากับคุณ ${matched.length} สี` : 'สีที่เข้ากับคุณ'}: <span style={{ color: 'var(--ink)' }}>{selected?.color}</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, alignItems: 'center' }}>
+              {matched.slice(0, MAX_SWATCHES).map((c) => (
+                <span
+                  key={c.color}
+                  title={c.color}
+                  onClick={(e) => { e.stopPropagation(); setSelected(c); }}
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%', background: c.colorHex || '#ccc',
+                    border: '1px solid #cbd5e1',
+                    boxShadow: selected?.color === c.color ? '0 0 0 2px #fff, 0 0 0 3px var(--accent)' : 'none',
+                  }}
+                />
+              ))}
+              {extra > 0 && <span style={{ fontSize: 9.5, color: 'var(--text-dim)' }}>+{extra}</span>}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Assistant() {
   const navigate = useNavigate();
@@ -110,7 +167,7 @@ export default function Assistant() {
     } else if (!preferences?.occasion) {
       quickReplies = ['ทั่วไป', 'เข้ากิจกรรม', 'ทางการ'];
     } else if (!preferences?.budget) {
-      quickReplies = ['ต่ำกว่า 350', '500', 'ไม่ระบุ'];
+      quickReplies = ['ไม่เกิน 180', 'มากกว่า 200', 'ไม่ระบุ'];
     } else if (!preferences?.size) {
       quickReplies = ['S', 'M', 'L', 'XL', 'XXL'];
     }
@@ -165,6 +222,8 @@ export default function Assistant() {
               color: m.sender === 'USER' ? '#fff' : 'var(--text)',
               border: m.sender === 'USER' ? 'none' : '1px solid var(--line)',
               borderLeft: m.sender === 'AI' ? '3px solid var(--accent)' : 'none',
+              // ให้การขึ้นบรรทัดใหม่ในคำตอบของ AI แสดงผลจริง ไม่ติดกันเป็นก้อนเดียว
+              whiteSpace: 'pre-line',
             }}>
               {m.content}
             </div>
@@ -177,25 +236,12 @@ export default function Assistant() {
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   {m.products.map((p, i) => (
-                    <div 
-                      key={p.id} 
-                      onClick={() => navigate(`/products/${p.id}`)}
-                      style={{ width: 130, background: '#fff', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
-                    >
-                      <div style={{ position: 'absolute', top: 6, left: 6, fontSize: 16, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.15))' }}>
-                        {['🥇', '🥈', '🥉'][i]}
-                      </div>
-                      <div style={{ height: 90, overflow: 'hidden', background: 'var(--parchment-deep)' }}>
-                        {p.imageUrl
-                          ? <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>👕</div>
-                        }
-                      </div>
-                      <div style={{ padding: '8px 10px' }}>
-                        <div style={{ fontFamily: "'Fraunces','Noto Serif Thai',serif", fontSize: 10.5, color: 'var(--ink)', lineHeight: 1.4 }}>{p.name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>{p.price} บาท</div>
-                      </div>
-                    </div>
+                    <RecommendedProductCard
+                      key={p.id}
+                      product={p}
+                      rank={i}
+                      onOpen={(id, color) => navigate(`/products/${id}` + (color ? `?color=${encodeURIComponent(color)}` : ''))}
+                    />
                   ))}
                 </div>
               </div>

@@ -12,7 +12,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * จำกัดจำนวนครั้งที่เรียก /api/auth/login, /api/auth/register และ /api/auth/reset-password ได้ในช่วงเวลาหนึ่ง
+ * จำกัดจำนวนครั้งที่เรียก /api/auth/login, /api/auth/register, /api/auth/forgot-password
+ * และ /api/auth/resend-otp ได้ในช่วงเวลาหนึ่ง
  *
  * ใช้หน้าต่างเวลาแบบตายตัว (fixed window): นับครั้งแรกเป็นจุดเริ่มหน้าต่าง 15 นาที
  * ครบโควตาเมื่อไหร่ก็ปฏิเสธจนกว่าหน้าต่างจะหมดอายุ
@@ -46,6 +47,12 @@ public class AuthThrottleService {
     /** จำนวนครั้งที่ขอรีเซ็ตรหัสผ่านได้ต่อ "หนึ่งอีเมล" และต่อ "หนึ่ง IP" ภายในหนึ่งหน้าต่าง */
     static final int MAX_RESET_ATTEMPTS_PER_EMAIL = 5;
     static final int MAX_RESET_ATTEMPTS_PER_IP = 10;
+
+    /**
+     * จำนวนครั้งที่ขอ OTP ใหม่ได้ต่อ "หนึ่งอีเมล" ภายในหนึ่งหน้าต่าง
+     * cooldown 60 วินาทีที่ EmailOtpService ยังปล่อยให้ส่งได้ชั่วโมงละ 60 ฉบับ ด่านนี้กดให้เหลือน้อยกว่านั้นมาก
+     */
+    static final int MAX_OTP_RESENDS_PER_EMAIL = 5;
 
     static final Duration WINDOW = Duration.ofMinutes(15);
 
@@ -109,7 +116,7 @@ public class AuthThrottleService {
 
     // ---------- reset password ----------
 
-    /** เรียกก่อนตรวจ invite code — โยน TooManyAttemptsException ถ้าถูกล็อกอยู่ */
+    /** เรียกก่อนส่ง OTP ตั้งรหัสผ่านใหม่ — โยน TooManyAttemptsException ถ้าถูกล็อกอยู่ */
     public void ensurePasswordResetAllowed(String email, String clientIp) {
         ensureUnderLimit(resetEmailKey(email), MAX_RESET_ATTEMPTS_PER_EMAIL,
                 "ขอรีเซ็ตรหัสผ่านถี่เกินไป กรุณารอ %d นาทีแล้วลองใหม่");
@@ -118,13 +125,24 @@ public class AuthThrottleService {
     }
 
     /**
-     * นับทุกครั้งที่ขอรีเซ็ต ไม่ว่าจะสำเร็จหรือไม่
-     * การเปลี่ยนรหัสซ้ำๆ ไม่ใช่พฤติกรรมปกติ และไม่ล้างตัวนับเมื่อสำเร็จ
+     * นับทุกครั้งที่ขอรหัสรีเซ็ต ไม่ว่าอีเมลจะมีบัญชีหรือไม่
+     * การขอรีเซ็ตซ้ำๆ ไม่ใช่พฤติกรรมปกติ และไม่ล้างตัวนับเมื่อสำเร็จ
      * เพราะ response ตั้งใจให้เหมือนกันทุกกรณีอยู่แล้ว
      */
     public void recordPasswordResetAttempt(String email, String clientIp) {
         increment(resetEmailKey(email));
         increment(resetIpKey(clientIp));
+    }
+
+    // ---------- resend OTP ----------
+
+    public void ensureOtpResendAllowed(String email) {
+        ensureUnderLimit(otpResendKey(email), MAX_OTP_RESENDS_PER_EMAIL,
+                "ขอรหัส OTP ใหม่บ่อยเกินไป กรุณารอ %d นาทีแล้วลองใหม่");
+    }
+
+    public void recordOtpResend(String email) {
+        increment(otpResendKey(email));
     }
 
     // ---------- ภายใน ----------
@@ -177,6 +195,10 @@ public class AuthThrottleService {
 
     private String resetIpKey(String clientIp) {
         return "reset:ip:" + clientIp;
+    }
+
+    private String otpResendKey(String email) {
+        return "otp-resend:email:" + (email == null ? "" : email.trim().toLowerCase(Locale.ROOT));
     }
 
     /** กวาดหน้าต่างที่หมดอายุทิ้ง ไม่ให้ map โตไม่สิ้นสุดจาก IP ที่ไม่กลับมาอีก */

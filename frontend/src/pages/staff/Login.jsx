@@ -5,6 +5,7 @@ import {
   STAFF_DASHBOARD_PATH,
   STAFF_REGISTER_PATH,
   STAFF_RESET_PASSWORD_PATH,
+  STAFF_VERIFY_EMAIL_PATH,
 } from '../../config/staffRoutes';
 import StaffAuthLayout, {
   ErrorBanner,
@@ -18,10 +19,15 @@ import StaffAuthLayout, {
 
 export default function StaffLogin() {
   const location = useLocation();
-  // หน้า Register ส่งอีเมลที่เพิ่งสมัครมาทาง router state
-  const registeredEmail = location.state?.registeredEmail;
+  // หน้ายืนยันอีเมล / หน้าตั้งรหัสผ่านใหม่ส่งอีเมลที่เพิ่งทำสำเร็จมาทาง router state
+  const verifiedEmail = location.state?.verifiedEmail;
+  const passwordResetEmail = location.state?.passwordResetEmail;
+  const prefilledEmail = verifiedEmail || passwordResetEmail;
+  const successMessage = passwordResetEmail
+    ? 'ตั้งรหัสผ่านใหม่สำเร็จแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่'
+    : 'ยืนยันอีเมลสำเร็จแล้ว กรุณาเข้าสู่ระบบเพื่อเริ่มใช้งาน';
 
-  const [form, setForm] = useState({ email: registeredEmail || '', password: '' });
+  const [form, setForm] = useState({ email: prefilledEmail || '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -38,6 +44,11 @@ export default function StaffLogin() {
       authApi.saveSession(session);
       navigate(STAFF_DASHBOARD_PATH, { replace: true });
     } catch (err) {
+      // รหัสผ่านถูกแต่ยังไม่ยืนยันอีเมล — พาไปกรอก OTP แทนการแสดง error ค้างไว้
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        navigate(STAFF_VERIFY_EMAIL_PATH, { state: { email: form.email } });
+        return;
+      }
       setError(err.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลหรือรหัสผ่าน');
     } finally {
       setLoading(false);
@@ -51,9 +62,7 @@ export default function StaffLogin() {
       subtitle="เข้าสู่ระบบร้านค้า UTCC Shop สำหรับจัดการและดู Analytics"
     >
       {/* ซ่อนข้อความยินดีต้อนรับเมื่อมี error แล้ว เพื่อไม่ให้สองกล่องขัดกันเอง */}
-      {registeredEmail && !error && (
-        <SuccessBanner message="สมัครบัญชีสำเร็จแล้ว กรุณาเข้าสู่ระบบเพื่อเริ่มใช้งาน" />
-      )}
+      {prefilledEmail && !error && <SuccessBanner message={successMessage} />}
       <ErrorBanner message={error} />
 
       <form onSubmit={handleLogin}>
@@ -77,8 +86,8 @@ export default function StaffLogin() {
           <PasswordInput
             id="password"
             required
-            // มาจากหน้าสมัคร อีเมลถูกเติมให้แล้ว จึงโฟกัสที่ช่องรหัสผ่านเลย
-            autoFocus={Boolean(registeredEmail)}
+            // มาจากหน้ายืนยันอีเมล/ตั้งรหัสผ่านใหม่ อีเมลถูกเติมให้แล้ว จึงโฟกัสที่ช่องรหัสผ่านเลย
+            autoFocus={Boolean(prefilledEmail)}
             autoComplete="current-password"
             value={form.password}
             onChange={updateField('password')}

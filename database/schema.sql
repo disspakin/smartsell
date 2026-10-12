@@ -6,7 +6,20 @@ CREATE TABLE app_user (
     password_hash VARCHAR(255),
     role          VARCHAR(20) NOT NULL DEFAULT 'STORE_MANAGER', -- STORE_MANAGER | ADMIN
     display_name  VARCHAR(100),
-    created_at    TIMESTAMP NOT NULL DEFAULT now()
+    created_at    TIMESTAMP NOT NULL DEFAULT now(),
+    -- บัญชีใหม่ตั้งเป็น false ตอนสมัคร DEFAULT TRUE มีไว้ให้บัญชีเก่าที่มีก่อนระบบ OTP
+    email_verified BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- OTP ยืนยันอีเมล/ตั้งรหัสผ่านใหม่ หนึ่งบัญชีมีได้หนึ่งแถว เก็บแค่ BCrypt hash ของรหัส
+CREATE TABLE email_otp (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL UNIQUE REFERENCES app_user(id) ON DELETE CASCADE,
+    purpose         VARCHAR(20) NOT NULL DEFAULT 'VERIFY_EMAIL', -- VERIFY_EMAIL | RESET_PASSWORD
+    code_hash       VARCHAR(255) NOT NULL,
+    expires_at      TIMESTAMP NOT NULL,
+    failed_attempts INT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE product (
@@ -59,10 +72,11 @@ CREATE TABLE customer_interaction (
     id             BIGSERIAL PRIMARY KEY,
     session_id     BIGINT REFERENCES customer_session(id) ON DELETE CASCADE,
     product_id     BIGINT REFERENCES product(id) ON DELETE CASCADE,
-    event_type     VARCHAR(30) NOT NULL, -- VIEW | INTERESTED_CLICK | AI_RECOMMENDED
+    event_type     VARCHAR(30) NOT NULL, -- VIEW | INTERESTED_CLICK | AI_RECOMMENDED | LUCKY_COLOR_SEARCH | *_RATING
     personal_color VARCHAR(20),
     occasion       VARCHAR(30),
-    lucky_color    VARCHAR(30),
+    lucky_color    VARCHAR(30),   -- เป้าหมายเสริมดวง (การงาน, ความรัก, ...) ไม่ใช่ชื่อสี
+    client_token   VARCHAR(100),  -- token ของผู้ใช้ที่ไม่ได้ล็อกอิน ใช้กันนับ LUCKY_COLOR_SEARCH ซ้ำ
     size           VARCHAR(10),
     budget         NUMERIC(10,2),
     rating         INT,

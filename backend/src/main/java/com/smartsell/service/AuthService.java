@@ -5,9 +5,12 @@
     import com.smartsell.dto.RegisterRequest;
     import com.smartsell.dto.ResetPasswordRequest;
     import com.smartsell.entity.AppUser;
+    import com.smartsell.entity.OtpPurpose;
     import com.smartsell.exception.EmailAlreadyUsedException;
+    import com.smartsell.exception.EmailNotVerifiedException;
     import com.smartsell.exception.InvalidCredentialsException;
     import com.smartsell.exception.InvalidInviteCodeException;
+    import com.smartsell.exception.InvalidOtpException;
     import com.smartsell.repository.AppUserRepository;
     import com.smartsell.security.AuthThrottleService;
     import com.smartsell.security.JwtUtil;
@@ -32,6 +35,7 @@
         private final PasswordEncoder passwordEncoder;
         private final JwtUtil jwtUtil;
         private final AuthThrottleService throttleService;
+        private final EmailOtpService otpService;
 
         /**
          * รหัสเชิญที่ต้องแนบมาตอนสมัคร — อ่านจาก app.auth.invite-code
@@ -41,12 +45,13 @@
         private final String inviteCode;
 
         public AuthService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
-                           AuthThrottleService throttleService,
+                           AuthThrottleService throttleService, EmailOtpService otpService,
                            @Value("${app.auth.invite-code:}") String inviteCode) {
             this.appUserRepository = appUserRepository;
             this.passwordEncoder = passwordEncoder;
             this.jwtUtil = jwtUtil;
             this.throttleService = throttleService;
+            this.otpService = otpService;
             this.inviteCode = inviteCode == null ? "" : inviteCode.trim();
         }
 
@@ -62,6 +67,8 @@
          *
          * ตรวจ invite code ก่อนเช็คอีเมลซ้ำ คนที่ไม่มี code จึงใช้คำตอบ 409
          * ไล่เดาว่าอีเมลไหนมีบัญชีอยู่แล้วไม่ได้
+         *
+         * บัญชีใหม่ยังล็อกอินไม่ได้จนกว่าจะกรอก OTP ที่ส่งไปทางอีเมลถูก (ดู EmailOtpService)
          */
         @Transactional
         public AppUser register(RegisterRequest request, String clientIp) {
@@ -83,6 +90,7 @@
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
             user.setDisplayName(request.getDisplayName().trim());
             user.setRole(Roles.STORE_MANAGER);
+            user.setEmailVerified(false);
 
             try {
                 appUserRepository.saveAndFlush(user);
@@ -93,6 +101,7 @@
             }
 
             throttleService.recordRegistration(clientIp);
+            otpService.issueFor(user, OtpPurpose.VERIFY_EMAIL);
             return user;
         }
 
@@ -111,35 +120,48 @@
             }
 
             throttleService.clearLoginFailures(email, clientIp);
+
+            // เช็คหลังตรวจรหัสผ่านแล้วเท่านั้น คนที่ไม่รู้รหัสจึงใช้คำตอบนี้ไล่ดูว่าบัญชีไหนยังไม่ยืนยันไม่ได้
+            if (!user.isEmailVerified()) {
+                throw new EmailNotVerifiedException("กรุณายืนยันอีเมลด้วยรหัส OTP ก่อนเข้าสู่ระบบ");
+            }
             return toAuthResponse(user);
         }
 
         /**
-         * ตั้งรหัสผ่านใหม่โดยยืนยันด้วย invite code (ไม่มีระบบส่งอีเมล)
+         * ขั้นที่ 1 ของการตั้งรหัสผ่านใหม่ — ส่ง OTP ไปที่อีเมลของเจ้าของบัญชี
          *
-         * ตรวจ invite code ก่อนแตะฐานข้อมูล invite code ผิดจึงได้ 403 เสมอ
-         * ไม่ว่าอีเมลนั้นจะมีบัญชีหรือไม่ ส่วนเมื่อ code ถูก ก็ไม่บอกว่าเจอบัญชีหรือเปล่า
+         * เดิมยืนยันด้วย invite code ซึ่งพนักงานทุกคนรู้ร่วมกัน ใครก็ตั้งรหัสใหม่ให้บัญชีคนอื่นได้
+         * ตอนนี้ต้องเปิดกล่องจดหมายของบัญชีนั้นได้จริงเท่านั้น
+         *
+         * นับโควตาทุกคำขอก่อนรู้ว่ามีบัญชีหรือไม่ และไม่บอกว่าเจอบัญชีหรือเปล่า
          * ผู้เรียกจึงใช้ endpoint นี้ไล่เดาว่าอีเมลไหนมีบัญชีอยู่ไม่ได้
-         *
-         * hash รหัสใหม่ก่อนค้นหาบัญชีเสมอ ให้ทั้งสองกรณีเสียเวลา BCrypt เท่ากัน
-         * ไม่งั้นจับเวลาตอบกลับก็แยกออกได้ว่าอีเมลไหนมีจริง
          */
         @Transactional
-        public void resetPassword(ResetPasswordRequest request, String clientIp) {
-            String email = normalizeEmail(request.getEmail());
+        public void requestPasswordReset(String rawEmail, String clientIp) {
+            String email = normalizeEmail(rawEmail);
 
             throttleService.ensurePasswordResetAllowed(email, clientIp);
             throttleService.recordPasswordResetAttempt(email, clientIp);
 
-            if (!inviteCodeMatches(request.getInviteCode())) {
-                throw new InvalidInviteCodeException("invite code ไม่ถูกต้อง");
-            }
+            otpService.requestPasswordReset(email);
+        }
 
-            String newHash = passwordEncoder.encode(request.getNewPassword());
-            appUserRepository.findByEmail(email).ifPresent(user -> {
-                user.setPasswordHash(newHash);
-                appUserRepository.save(user);
-            });
+        /**
+         * ขั้นที่ 2 — ตรวจ OTP แล้วตั้งรหัสผ่านใหม่
+         *
+         * noRollbackFor ต้องมีที่นี่ด้วย ไม่ใช่แค่ที่ EmailOtpService เพราะ exception วิ่งผ่าน
+         * transaction ชั้นนี้ขาออก ถ้าไม่ใส่ การนับครั้งที่กรอกผิดจะถูก rollback ทิ้งและเดาได้ไม่จำกัด
+         *
+         * กรอก OTP ที่ส่งไปทางอีเมลถูก แปลว่าเป็นเจ้าของกล่องจดหมายนั้นจริง
+         * บัญชีที่ยังไม่ยืนยันอีเมลจึงถือว่ายืนยันแล้วไปด้วย ไม่ต้องกรอก OTP อีกรอบ
+         */
+        @Transactional(noRollbackFor = InvalidOtpException.class)
+        public void resetPassword(ResetPasswordRequest request) {
+            AppUser user = otpService.consumePasswordReset(request.getEmail(), request.getCode());
+            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            user.setEmailVerified(true);
+            appUserRepository.save(user);
         }
 
         /**

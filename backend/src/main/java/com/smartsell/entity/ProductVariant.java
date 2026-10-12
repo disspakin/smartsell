@@ -1,6 +1,7 @@
 package com.smartsell.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "product_variant")
@@ -26,6 +27,13 @@ public class ProductVariant {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "stock_qty", nullable = false)
+    private int stockQty;
+
+    // ราคาเฉพาะไซส์นี้ (เช่น 3XL ขึ้นไปแพงกว่า) — NULL = ใช้ product.price
+    @Column(precision = 10, scale = 2)
+    private BigDecimal price;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -43,4 +51,15 @@ public class ProductVariant {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public int getStockQty() { return stockQty; }
+    public void setStockQty(int stockQty) { this.stockQty = stockQty; }
+
+    public BigDecimal getPrice() { return price; }
+    public void setPrice(BigDecimal price) { this.price = price; }
+
+    /** ราคาที่ขายจริงของ variant นี้ — ที่เดียวที่ตัดสินว่าใช้ราคาไซส์หรือราคาปกติ ห้ามเขียน logic นี้ซ้ำที่อื่น */
+    public BigDecimal getEffectivePrice() {
+        return price != null ? price : product.getPrice();
+    }
 }

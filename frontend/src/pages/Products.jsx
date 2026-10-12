@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { formatMinPrice } from '../utils/price';
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -38,7 +39,7 @@ export default function Products() {
               )}
             </div>
             <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>{p.name}</h3>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{p.price} บาท</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{formatMinPrice(p)}</div>
           </div>
         ))}
       </div>

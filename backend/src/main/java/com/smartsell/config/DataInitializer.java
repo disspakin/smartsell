@@ -66,7 +66,7 @@ public class DataInitializer implements CommandLineRunner {
     /**
      * ฐานข้อมูลที่เคยรันเวอร์ชันก่อนจะยังมีบัญชีเดโมที่ใช้รหัสผ่านสาธารณะค้างอยู่
      * เปลี่ยน hash เป็นค่าสุ่มที่ไม่มีใครรู้แทนการลบ เพราะอาจมีข้อมูลอื่นอ้างอิงแถวนี้อยู่
-     * เจ้าของบัญชีตัวจริงยังกู้คืนได้ผ่าน /api/auth/reset-password
+     * เจ้าของบัญชีตัวจริงยังกู้คืนได้ผ่าน /api/auth/forgot-password (ส่ง OTP ไปที่อีเมลของบัญชี)
      */
     private void disableLegacyDemoAccount() {
         userRepository.findByEmail(LEGACY_DEMO_EMAIL)
@@ -99,6 +99,8 @@ public class DataInitializer implements CommandLineRunner {
         admin.setPasswordHash(passwordEncoder.encode(seedAdminPassword));
         admin.setRole(Roles.STORE_MANAGER);
         admin.setDisplayName("ผู้จัดการร้าน UTCC Shop");
+        // บัญชีที่ตั้งผ่าน config ถือว่ายืนยันแล้ว — ไม่มีขั้นตอนสมัครให้กรอก OTP
+        admin.setEmailVerified(true);
         userRepository.save(admin);
         log.info("สร้างบัญชีเริ่มต้น {} แล้ว", seedAdminEmail);
     }
@@ -112,7 +114,7 @@ public class DataInitializer implements CommandLineRunner {
         Product poloGold = new Product();
         poloGold.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีเหลืองทอง)");
         poloGold.setCategory("Polo");
-        poloGold.setPrice(new BigDecimal("350.00"));
+        poloGold.setPrice(new BigDecimal("250.00"));
         poloGold.setDescription("เสื้อโปโลผ้า Cotton เนื้อนุ่ม ระบายอากาศได้ดี ตราสัญลักษณ์ UTCC สีเหลืองทองสง่างาม");
         poloGold.setImageUrl("https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80");
         createVariants(poloGold, "Yellow", "#EAB308", Arrays.asList("S", "M", "L", "XL", "XXL"));
@@ -123,7 +125,7 @@ public class DataInitializer implements CommandLineRunner {
         Product poloNavy = new Product();
         poloNavy.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีน้ำเงินเข้ม)");
         poloNavy.setCategory("Polo");
-        poloNavy.setPrice(new BigDecimal("350.00"));
+        poloNavy.setPrice(new BigDecimal("250.00"));
         poloNavy.setDescription("เสื้อโปโลทรงสมาร์ท สีน้ำเงินเข้มคลาสสิก ปักโลโก้ UTCC ที่อกซ้าย เหมาะสำหรับใส่เรียนและงานทางการ");
         poloNavy.setImageUrl("https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?auto=format&fit=crop&w=600&q=80");
         createVariants(poloNavy, "Navy", "#1E3A8A", Arrays.asList("S", "M", "L", "XL"));
@@ -134,7 +136,7 @@ public class DataInitializer implements CommandLineRunner {
         Product poloWhite = new Product();
         poloWhite.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีขาวเรียบหรู)");
         poloWhite.setCategory("Polo");
-        poloWhite.setPrice(new BigDecimal("350.00"));
+        poloWhite.setPrice(new BigDecimal("250.00"));
         poloWhite.setDescription("เสื้อโปโลสีขาวสะอาด ตัดเย็บประณีต ผ้าซับเหงื่อได้ไว แมตช์กับกางเกงหรือกระโปรงได้ทุกสไตล์");
         poloWhite.setImageUrl("https://images.unsplash.com/photo-1625910513413-7fc214f479a3?auto=format&fit=crop&w=600&q=80");
         createVariants(poloWhite, "White", "#FFFFFF", Arrays.asList("S", "M", "L", "XL", "XXL"));
@@ -145,7 +147,7 @@ public class DataInitializer implements CommandLineRunner {
         Product tshirtSky = new Product();
         tshirtSky.setName("เสื้อยืดสกรีน UTCC Freshy (สีฟ้า)");
         tshirtSky.setCategory("T-Shirt");
-        tshirtSky.setPrice(new BigDecimal("250.00"));
+        tshirtSky.setPrice(new BigDecimal("180.00"));
         tshirtSky.setDescription("เสื้อยืดคอกลมผ้า Supersoft สกรีนลาย UTCC Smart Campus สีฟ้าสดใส สวมใส่สบายสไตล์ชิลๆ");
         tshirtSky.setImageUrl("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=600&q=80");
         createVariants(tshirtSky, "Sky Blue", "#38BDF8", Arrays.asList("S", "M", "L", "XL"));
@@ -156,7 +158,7 @@ public class DataInitializer implements CommandLineRunner {
         Product tshirtBlack = new Product();
         tshirtBlack.setName("เสื้อยืดสกรีน UTCC Minimal (สีดำ)");
         tshirtBlack.setCategory("T-Shirt");
-        tshirtBlack.setPrice(new BigDecimal("250.00"));
+        tshirtBlack.setPrice(new BigDecimal("200.00"));
         tshirtBlack.setDescription("เสื้อยืดทรงโอเวอร์ไซส์สีดำ สกรีนอักษร UTCC สไตล์มินิมอล เท่ได้ทุกวัน");
         tshirtBlack.setImageUrl("https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80");
         createVariants(tshirtBlack, "Black", "#000000", Arrays.asList("M", "L", "XL"));
@@ -167,7 +169,7 @@ public class DataInitializer implements CommandLineRunner {
         Product jacketNavy = new Product();
         jacketNavy.setName("เสื้อแจ็คเก็ตวอร์ม UTCC Sport (สีน้ำเงิน-ทอง)");
         jacketNavy.setCategory("Jacket");
-        jacketNavy.setPrice(new BigDecimal("650.00"));
+        jacketNavy.setPrice(new BigDecimal("220.00"));
         jacketNavy.setDescription("เสื้อแจ็คเก็ตกีฬามหาวิทยาลัย UTCC ผ้าวอร์มพรีเมียม ซิปรูดลื่น ใส่กันลมหรือใส่ในห้องแอร์เย็นๆ");
         jacketNavy.setImageUrl("https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80");
         createVariants(jacketNavy, "Navy Gold", "#0F172A", Arrays.asList("M", "L", "XL"));

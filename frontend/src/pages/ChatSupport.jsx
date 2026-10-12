@@ -180,6 +180,8 @@ export default function ChatSupport() {
                 border: m.sender === 'USER' ? 'none' : '1px solid var(--line)',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 wordBreak: 'break-word',
+                // ให้การขึ้นบรรทัดใหม่ในคำตอบของ AI แสดงผลจริง ไม่ติดกันเป็นก้อนเดียว
+                whiteSpace: 'pre-line',
               }}
             >
               {m.content}

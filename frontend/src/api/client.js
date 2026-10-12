@@ -27,10 +27,12 @@ async function request(path, options = {}) {
     const errorText = await res.text();
     let errorMessage = `API error ${res.status}`;
     let fieldErrors = null;
+    let code = null;
     try {
       const parsed = JSON.parse(errorText);
       if (parsed.error) errorMessage = parsed.error;
       if (parsed.fieldErrors) fieldErrors = parsed.fieldErrors;
+      if (parsed.code) code = parsed.code;
     } catch (e) {
       if (errorText) errorMessage = errorText;
     }
@@ -40,6 +42,11 @@ async function request(path, options = {}) {
     const error = new Error(errorMessage);
     error.status = res.status;
     error.fieldErrors = fieldErrors;
+    // code ใช้แยกกรณีที่ status เดียวกันแต่ต้องทำต่อต่างกัน เช่น EMAIL_NOT_VERIFIED
+    error.code = code;
+    // 429 แนบจำนวนวินาทีที่ต้องรอมาใน Retry-After ให้หน้าเว็บใช้นับถอยหลัง
+    const retryAfter = Number(res.headers.get('Retry-After'));
+    error.retryAfter = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null;
     throw error;
   }
 
@@ -55,6 +62,16 @@ export const api = {
   getProducts: (category) => request(`/products${category ? `?category=${category}` : ''}`),
 
   getProduct: (id) => request(`/products/${id}`),
+
+
+  // สินค้ายอดนิยม (คนเปิดดูเยอะสุด แล้วตามคนกดถูกใจ) — ใช้ใน "สินค้าแนะนำสำหรับคุณ" หน้าแรก
+  getPopularProducts: (limit = 6) => request(`/products/popular?limit=${limit}`),
+
+  // 404 = สินค้านี้ยังไม่มีตารางไซส์ (ไม่ใช่ error) คืน null ให้หน้าเว็บซ่อนลิงก์ "ตารางขนาด"
+  getSizeChart: (id) => request(`/products/${id}/size-chart`).catch((err) => {
+    if (err.status === 404) return null;
+    throw err;
+  }),
 
   sendChatMessage: (sessionId, message) =>
     request('/chat/assistant', { method: 'POST', body: JSON.stringify({ sessionId, message }) }),
@@ -97,11 +114,32 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  /** ตั้งรหัสผ่านใหม่ด้วย invite code — คืน { message } ข้อความเดียวกันเสมอเมื่อ code ถูก */
-  resetPassword: (email, inviteCode, newPassword) =>
+  /** ยืนยันอีเมลด้วย OTP 6 หลัก — สำเร็จแล้วต้องไปล็อกอินเอง ไม่ได้ token กลับมา */
+  verifyOtp: (email, code) =>
+    request('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }),
+
+  /** ขอ OTP ใหม่ — ขอถี่กว่า 60 วินาทีจะได้ error status 429 พร้อม retryAfter */
+  resendOtp: (email) =>
+    request('/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** ลืมรหัสผ่าน ขั้นที่ 1: ส่ง OTP ไปที่อีเมล — คืน { message } ข้อความเดียวกันเสมอ ขอถี่เกินได้ 429 */
+  forgotPassword: (email) =>
+    request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** ลืมรหัสผ่าน ขั้นที่ 2: ยืนยันด้วย OTP แล้วตั้งรหัสผ่านใหม่ */
+  resetPassword: (email, code, newPassword) =>
     request('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ email, inviteCode, newPassword }),
+      body: JSON.stringify({ email, code, newPassword }),
     }),
 
   getProfile: () => request('/auth/me'),

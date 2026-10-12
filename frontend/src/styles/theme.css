@@ -171,6 +171,16 @@ background:var(--parchment-deep); color:var(--ink);
 .pd-layout{
   display:grid; grid-template-columns:1.3fr 1fr; gap:56px; margin-top:20px;
 }
+/* ให้คอลัมน์หดตามจอได้ — ค่าเริ่มต้น min-width:auto ทำให้ grid ปุ่มไซส์ดันคอลัมน์กว้างเกินจอมือถือ */
+.pd-layout > *{ min-width:0; }
+.pd-size-chart-btn{
+  display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px 0 12px;
+  border:1px solid var(--line); border-radius:15px; background:#fff; cursor:pointer;
+  font-family:inherit; font-size:12.5px; font-weight:600; color:var(--accent);
+  user-select:none; transition:background .15s, border-color .15s;
+}
+.pd-size-chart-btn:hover{ background:var(--parchment-deep); border-color:var(--accent); }
+.pd-size-chart-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 .pd-image-box{
   height:420px; background:#fff; border:1px solid var(--line);
   display:flex; align-items:center; justify-content:center; overflow:hidden;
@@ -190,7 +200,7 @@ background:var(--parchment-deep); color:var(--ink);
 
 .home-featured-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 22px;
   align-items: stretch;
 }
@@ -203,6 +213,11 @@ background:var(--parchment-deep); color:var(--ink);
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+/* แสดงสินค้า 6 ตัว — ปุ่ม "เลือกดูสินค้าทั้งหมด" เป็นแถบเต็มความกว้างใต้ตาราง ไม่ต้องเป็นช่องที่ 7 ให้ตารางแหว่ง */
+.home-featured-grid .pcard-cta {
+  grid-column: 1 / -1;
+  height: 52px;
 }
 
 @media (max-width: 768px) {

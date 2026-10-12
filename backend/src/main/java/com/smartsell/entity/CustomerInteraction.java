@@ -29,8 +29,13 @@ public class CustomerInteraction {
     @Column(length = 30)
     private String occasion;
 
+    // เก็บ "เป้าหมายเสริมดวง" (การงาน, ความรัก, ...) ไม่ใช่ชื่อสี — ชื่อคอลัมน์ตั้งไว้ก่อนแยกฟีเจอร์
     @Column(name = "lucky_color", length = 30)
     private String luckyColor;
+
+    // token ของผู้ใช้ที่ไม่ได้ล็อกอิน (หน้าเว็บสุ่มเก็บไว้ใน localStorage) ใช้กันนับซ้ำจากคนเดิม
+    @Column(name = "client_token", length = 100)
+    private String clientToken;
 
     @Column(length = 10)
     private String size;
@@ -78,6 +83,9 @@ public class CustomerInteraction {
 
     public String getLuckyColor() { return luckyColor; }
     public void setLuckyColor(String luckyColor) { this.luckyColor = luckyColor; }
+
+    public String getClientToken() { return clientToken; }
+    public void setClientToken(String clientToken) { this.clientToken = clientToken; }
 
     public String getSize() { return size; }
     public void setSize(String size) { this.size = size; }

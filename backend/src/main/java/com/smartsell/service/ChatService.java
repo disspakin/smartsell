@@ -7,10 +7,14 @@ import com.smartsell.entity.CustomerSession;
 import com.smartsell.repository.ChatMessageRepository;
 import com.smartsell.repository.CustomerSessionRepository;
 import com.smartsell.repository.CustomerInteractionRepository;
+import com.smartsell.repository.SizeChartRowRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatService {
@@ -21,19 +25,25 @@ public class ChatService {
     private final GeminiClientService geminiClientService;
     private final com.smartsell.repository.ProductRepository productRepository;
     private final CustomerInteractionRepository customerInteractionRepository;
+    private final StoreInfoService storeInfoService;
+    private final SizeChartRowRepository sizeChartRowRepository;
 
     public ChatService(CustomerSessionRepository sessionRepository,
                        ChatMessageRepository messageRepository,
                        ProductScoringService productScoringService,
                        GeminiClientService geminiClientService,
                        com.smartsell.repository.ProductRepository productRepository,
-                       CustomerInteractionRepository customerInteractionRepository) {
+                       CustomerInteractionRepository customerInteractionRepository,
+                       StoreInfoService storeInfoService,
+                       SizeChartRowRepository sizeChartRowRepository) {
         this.sessionRepository = sessionRepository;
         this.messageRepository = messageRepository;
         this.productScoringService = productScoringService;
         this.geminiClientService = geminiClientService;
         this.productRepository = productRepository;
         this.customerInteractionRepository = customerInteractionRepository;
+        this.storeInfoService = storeInfoService;
+        this.sizeChartRowRepository = sizeChartRowRepository;
     }
 
     // =====================================================================
@@ -50,7 +60,8 @@ public class ChatService {
         // ── Parse user message → update session preferences ──────────────────
         // (Delegated to Gemini JSON parser)
         List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
-        GeminiClientService.AssistantResponse aiResult = geminiClientService.generateAssistantReply(history, request.message());
+        // ข้อมูลร้าน + เวลาไทยตอนนี้ + ตารางไซส์ ดึงใหม่ทุกข้อความ (ร้านแก้ใน DB แล้วมีผลทันที และสถานะเปิด/ปิดตรงเวลาจริง)
+        GeminiClientService.AssistantResponse aiResult = geminiClientService.generateAssistantReply(history, request.message(), buildStoreContext());
         
         // Update session with extracted preferences
         if (aiResult.getPersonalColor() != null) session.setPersonalColor(aiResult.getPersonalColor());
@@ -140,10 +151,43 @@ public class ChatService {
             contextBuilder.append("\n");
         }
         
-        String aiReply = geminiClientService.generateSupportReply(history, request.message(), contextBuilder.toString());
+        String aiReply = geminiClientService.generateSupportReply(history, request.message(), contextBuilder.toString(), buildStoreContext());
         saveMessage(session, "AI", aiReply);
 
         return new ChatDTO.ChatResponse(session.getId(), aiReply, null, List.of());
+    }
+
+    /** ข้อมูลร้าน + เวลาไทยตอนนี้ + ตารางไซส์ — ดึงใหม่ทุกข้อความ ใช้ทั้งผู้ช่วย AI และแชทกับเรา */
+    private String buildStoreContext() {
+        return storeInfoService.buildChatContext(storeInfoService.now()) + "\n" + buildSizeChartContext();
+    }
+
+    /**
+     * ตารางไซส์ของทุก chart ที่มีสินค้าผูกอยู่ (หน่วยนิ้ว วัดตัวเสื้อ) พร้อมชื่อสินค้าที่ใช้ตารางนั้น
+     * ให้ AI ตอบเรื่องไซส์ได้ — chart ที่ is_estimated = true ติดป้ายค่าประมาณไว้ให้ AI บอกลูกค้า
+     */
+    private String buildSizeChartContext() {
+        Map<com.smartsell.entity.SizeChart, List<String>> productsByChart = new LinkedHashMap<>();
+        for (com.smartsell.entity.Product p : productRepository.findAll()) {
+            if (p.getSizeChart() != null) {
+                productsByChart.computeIfAbsent(p.getSizeChart(), c -> new java.util.ArrayList<>()).add(p.getName());
+            }
+        }
+        StringBuilder sb = new StringBuilder("ตารางไซส์ของสินค้า (หน่วยนิ้ว เป็นขนาดตัวเสื้อ รูปแบบ ไซส์ รอบอก/ความยาว):\n");
+        if (productsByChart.isEmpty()) {
+            sb.append("ยังไม่มีตารางไซส์\n");
+        }
+        productsByChart.forEach((chart, productNames) -> {
+            sb.append(chart.getName());
+            if (chart.isEstimated()) sb.append(" [ค่าประมาณ ยังไม่ยืนยันจากร้าน]");
+            sb.append(" — ใช้กับ: ").append(String.join(", ", productNames)).append("\n  ");
+            sb.append(sizeChartRowRepository.findBySizeChartIdOrderBySortOrder(chart.getId()).stream()
+                    .map(r -> r.getSize() + " " + r.getChestIn().stripTrailingZeros().toPlainString()
+                            + "/" + r.getLengthIn().stripTrailingZeros().toPlainString())
+                    .collect(Collectors.joining(", ")));
+            sb.append("\n");
+        });
+        return sb.toString();
     }
 
     private CustomerSession newSession() {

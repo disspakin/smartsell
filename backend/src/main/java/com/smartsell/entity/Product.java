@@ -35,6 +35,11 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductVariant> variants = new ArrayList<>();
 
+    // NULL ได้ — สินค้าที่ยังไม่มีตารางไซส์ หน้าเว็บจะซ่อนลิงก์ "ตารางขนาด"
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "size_chart_id")
+    private SizeChart sizeChart;
+
 
 
     // ----- getters / setters -----
@@ -60,5 +65,8 @@ public class Product {
 
     public List<ProductVariant> getVariants() { return variants; }
     public void setVariants(List<ProductVariant> variants) { this.variants = variants; }
+
+    public SizeChart getSizeChart() { return sizeChart; }
+    public void setSizeChart(SizeChart sizeChart) { this.sizeChart = sizeChart; }
 
 }

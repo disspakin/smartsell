@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/client';
-import { STAFF_LOGIN_PATH } from '../../config/staffRoutes';
+import { STAFF_LOGIN_PATH, STAFF_VERIFY_EMAIL_PATH } from '../../config/staffRoutes';
 import StaffAuthLayout, {
   ErrorBanner,
   FieldError,
@@ -51,11 +51,11 @@ export default function StaffRegister() {
     try {
       const created = await authApi.register(form.email, form.password, form.displayName, form.inviteCode);
 
-      // ไม่ล็อกอินให้อัตโนมัติ — ส่งไปหน้าล็อกอินพร้อมอีเมลที่เพิ่งสมัคร
-      // เพื่อให้กรอกรหัสผ่านช่องเดียวก็เข้าได้ ไม่ต้องพิมพ์อีเมลซ้ำ
-      navigate(STAFF_LOGIN_PATH, {
+      // backend ส่ง OTP ไปที่อีเมลแล้ว — พาไปหน้ากรอกรหัสพร้อมอีเมลที่เพิ่งสมัคร
+      // ยืนยันเสร็จแล้วหน้านั้นจะพาไปหน้าล็อกอินต่อ
+      navigate(STAFF_VERIFY_EMAIL_PATH, {
         replace: true,
-        state: { registeredEmail: created.email },
+        state: { email: created.email, justSent: true },
       });
     } catch (err) {
       if (err.fieldErrors) setFieldErrors(err.fieldErrors);
@@ -69,7 +69,7 @@ export default function StaffRegister() {
     <StaffAuthLayout
       icon="📝"
       title="สมัครบัญชีร้านค้า"
-      subtitle="สร้างบัญชีพนักงาน/เจ้าของร้าน สมัครเสร็จแล้วเข้าสู่ระบบอีกครั้งเพื่อใช้งาน"
+      subtitle="สร้างบัญชีพนักงาน/เจ้าของร้าน สมัครเสร็จแล้วยืนยันอีเมลด้วยรหัส OTP ก่อนเข้าใช้งาน"
     >
       <ErrorBanner message={error} />
 

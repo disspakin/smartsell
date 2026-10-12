@@ -2,11 +2,14 @@ package com.smartsell.service;
 
 import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.Product;
+import com.smartsell.entity.ProductVariant;
 import com.smartsell.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -59,7 +62,7 @@ public class ProductScoringService {
                 .collect(Collectors.toList());
 
         return scored.stream()
-                .map(sp -> toDTO(sp.product()))
+                .map(sp -> toDTO(sp.product(), targetColors, size))
                 .collect(Collectors.toList());
     }
 
@@ -72,14 +75,32 @@ public class ProductScoringService {
                 .orElse(1);
     }
 
-    private ProductDTO toDTO(Product p) {
+    /**
+     * แสดงผลเท่านั้น ไม่มีผลกับการให้คะแนน: สีของสินค้าที่ scoreColor บอกว่าเข้ากับ personal color
+     * (สีละหนึ่ง variant เฉพาะสีที่มีไซส์ที่ลูกค้าเลือก) เรียงจากเข้าที่สุด และใช้รูปของสีแรกเป็นรูปการ์ด
+     */
+    private ProductDTO toDTO(Product p, List<String> targetColors, String size) {
         List<ProductDTO.VariantDTO> variants = p.getVariants().stream()
-                .map(v -> new ProductDTO.VariantDTO(
-                        v.getId(), v.getColor(), v.getColorHex(), v.getSize(), v.getImageUrl()))
+                .map(ProductDTO.VariantDTO::from)
                 .collect(Collectors.toList());
+
+        Map<String, ProductVariant> byColor = new LinkedHashMap<>();
+        p.getVariants().stream()
+                .filter(v -> v.getColor() != null)
+                .filter(v -> size == null || size.equalsIgnoreCase(v.getSize()))
+                .sorted(Comparator.comparing(ProductVariant::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .forEach(v -> byColor.putIfAbsent(v.getColor(), v));
+        List<ProductDTO.MatchedColor> matchedColors = byColor.values().stream()
+                .filter(v -> colorRuleEngine.scoreColor(v.getColor(), targetColors) > 1)
+                .sorted(Comparator.comparingInt((ProductVariant v) -> colorRuleEngine.scoreColor(v.getColor(), targetColors)).reversed())
+                .map(v -> new ProductDTO.MatchedColor(v.getColor(), v.getColorHex(),
+                        v.getImageUrl() != null ? v.getImageUrl() : p.getImageUrl()))
+                .collect(Collectors.toList());
+
+        String imageUrl = matchedColors.isEmpty() ? p.getImageUrl() : matchedColors.get(0).imageUrl();
         return new ProductDTO(
                 p.getId(), p.getName(), p.getCategory(), p.getPrice(),
-                p.getDescription(), p.getImageUrl(), variants);
+                p.getDescription(), imageUrl, variants, matchedColors);
     }
 
     private record ScoredProduct(Product product, int score) {}

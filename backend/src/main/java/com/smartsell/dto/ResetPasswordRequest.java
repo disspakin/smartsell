@@ -2,9 +2,10 @@ package com.smartsell.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** คำขอตั้งรหัสผ่านใหม่โดยยืนยันด้วย invite code แทนอีเมล */
+/** ขั้นที่สองของการตั้งรหัสผ่านใหม่ — ยืนยันด้วยรหัส OTP ที่ส่งไปทางอีเมล */
 public class ResetPasswordRequest {
 
     @NotBlank(message = "กรุณากรอกอีเมล")
@@ -12,9 +13,9 @@ public class ResetPasswordRequest {
     @Size(max = 255, message = "อีเมลยาวเกิน 255 ตัวอักษร")
     private String email;
 
-    // เหมือน RegisterRequest: ไม่ใส่ @NotBlank เพื่อให้กรณีไม่ส่งมาได้ 403 และถูกนับใน rate limit
-    @Size(max = 200, message = "invite code ยาวเกินไป")
-    private String inviteCode;
+    @NotBlank(message = "กรุณากรอกรหัส OTP")
+    @Pattern(regexp = "\\d{6}", message = "รหัส OTP ต้องเป็นตัวเลข 6 หลัก")
+    private String code;
 
     // กฎเดียวกับตอนสมัคร — BCrypt ตัดข้อความทิ้งหลังไบต์ที่ 72
     @NotBlank(message = "กรุณากรอกรหัสผ่านใหม่")
@@ -24,8 +25,8 @@ public class ResetPasswordRequest {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public String getInviteCode() { return inviteCode; }
-    public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
+    public String getCode() { return code; }
+    public void setCode(String code) { this.code = code; }
 
     public String getNewPassword() { return newPassword; }
     public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
