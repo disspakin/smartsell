@@ -9,6 +9,33 @@ const THAI_COLOR_HEX = {
   'ขาว': '#f5f5f5', 'น้ำเงิน': '#1e3a5f', 'เทา': '#95a5a6', 'น้ำตาล': '#8b5e3c',
 };
 
+// สัญลักษณ์เพศ — ใช้ stroke ไม่ใช่ fill เส้นจึงหนาเท่ากันทุกส่วนแบบสัญลักษณ์มาตรฐาน
+// color ส่งมาจากปุ่ม: ยังไม่เลือกเป็นสีประจำเพศ เลือกแล้วเป็นสีขาวบนพื้นเข้ม
+function MaleIcon({ color }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" aria-hidden="true">
+      <circle cx="10" cy="14" r="6.5" />
+      <path d="M14.6 9.4 21 3M15 3h6v6" strokeLinecap="square" />
+    </svg>
+  );
+}
+
+function FemaleIcon({ color }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" aria-hidden="true">
+      <circle cx="12" cy="9" r="6.5" />
+      <path d="M12 15.5V23M8 19.5h8" strokeLinecap="square" />
+    </svg>
+  );
+}
+
+// ค่าเดียวกับ TargetGroup ฝั่ง backend — ANY = ไม่ระบุ ได้สินค้าทุกเพศ
+const GENDERS = [
+  { key: 'MALE', label: 'ชาย', Icon: MaleIcon, iconColor: '#1120c4' },
+  { key: 'FEMALE', label: 'หญิง', Icon: FemaleIcon, iconColor: '#f43f8e' },
+  { key: 'ANY', label: 'ไม่ระบุ' },
+];
+
 const DAYS = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
 const GOALS = [
   { key: 'การเรียน', label: '📚 การเรียน' },
@@ -31,6 +58,7 @@ function getSessionToken() {
 export default function LuckyColor() {
   const [day, setDay] = useState('จันทร์');
   const [goal, setGoal] = useState('การงาน');
+  const [gender, setGender] = useState('ANY');
   const [result, setResult] = useState(null);
   const [luckyRatingSubmitted, setLuckyRatingSubmitted] = useState(false);
   const [luckyHoveredStar, setLuckyHoveredStar] = useState(0);
@@ -64,7 +92,7 @@ export default function LuckyColor() {
       const res = await fetch('/api/lucky-color', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionToken: getSessionToken(), birthWeekday: day, luckyGoal: goal }),
+        body: JSON.stringify({ sessionToken: getSessionToken(), birthWeekday: day, luckyGoal: goal, gender }),
       });
       const data = await res.json();
       // backend ตอบ 400 พร้อมข้อความเมื่อวันเกิด/เป้าหมายไม่ถูกต้อง — ห้ามเอา error body ไปแสดงเป็นผลลัพธ์
@@ -134,6 +162,26 @@ export default function LuckyColor() {
             </div>
           ))}
         </div>
+
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10, marginTop: 20 }}>เสื้อสำหรับ</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {GENDERS.map(({ key, label, Icon, iconColor }) => (
+            <div
+              key={key}
+              onClick={() => setGender(key)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                border: gender === key ? '1.5px solid var(--ink)' : '1.5px solid var(--line)',
+                background: gender === key ? 'var(--ink)' : '#fff',
+                color: gender === key ? '#fff' : 'var(--text)',
+              }}
+            >
+              {Icon && <Icon color={gender === key ? '#fff' : iconColor} />}
+              {label}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="btn primary" style={{ display: 'inline-flex', marginTop: 24 }} onClick={handleSubmit}>
@@ -158,7 +206,8 @@ export default function LuckyColor() {
                 title={name.trim()}
                 style={{
                   width: 36, height: 36, borderRadius: '50%',
-                  background: THAI_COLOR_HEX[name.trim()] || result.colorHex || '#ccc',
+                  // hex มาจาก rulebase ฝั่ง backend เรียงตรงกับชื่อสี — ตารางในไฟล์นี้เป็นแค่สำรอง
+                  background: result.colorHexes?.[i] || THAI_COLOR_HEX[name.trim()] || '#ccc',
                   boxShadow: '0 0 0 2px #fff, 0 0 0 3px var(--line)',
                 }}
               />
@@ -172,6 +221,8 @@ export default function LuckyColor() {
 
           {result.products?.length > 0 && (
             <div style={{ position: 'relative' }}>
+              {/* ไม่เกิน 3 ชิ้นใส่ในกรอบได้หมด ไม่มีอะไรให้เลื่อน */}
+              {result.products.length > 3 && (<>
               <button
                 onClick={() => scrollProducts(-1)}
                 style={{
@@ -194,6 +245,7 @@ export default function LuckyColor() {
               >
                 ›
               </button>
+              </>)}
               <div
                 ref={scrollRef}
                 style={{

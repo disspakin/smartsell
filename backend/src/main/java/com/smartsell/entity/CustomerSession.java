@@ -31,6 +31,9 @@ public class CustomerSession {
     @Column(length = 10)
     private String size;
 
+    @Column(length = 10)
+    private String gender; // MALE / FEMALE / ANY (ไม่ระบุ) — ดู TargetGroup
+
     @Column(name = "birth_weekday", length = 15)
     private String birthWeekday;
 
@@ -60,6 +63,9 @@ public class CustomerSession {
 
     public String getSize() { return size; }
     public void setSize(String size) { this.size = size; }
+
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
 
     public String getBirthWeekday() { return birthWeekday; }
     public void setBirthWeekday(String birthWeekday) { this.birthWeekday = birthWeekday; }

@@ -169,27 +169,33 @@ export const authApi = {
   },
 };
 
+// ช่วงเวลาของ Dashboard → "?from=YYYY-MM-DD&to=YYYY-MM-DD" (ไม่ส่ง = ข้อมูลทั้งหมด)
+function rangeQuery(range) {
+  if (!range?.from || !range?.to) return '';
+  return `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
+}
+
 export const adminApi = {
-  getSummary: async () => {
+  getSummary: async (range) => {
     try {
-      return await request('/admin/dashboard/summary');
+      return await request('/admin/dashboard/summary' + rangeQuery(range));
     } catch (err) {
       // ลบ mock data ทิ้ง ให้แสดง error ตามความจริงเมื่อ backend พัง
       throw err;
     }
   },
 
-  getDemandAnalytics: async () => {
+  getDemandAnalytics: async (range) => {
     try {
-      return await request('/admin/dashboard/demand-analytics');
+      return await request('/admin/dashboard/demand-analytics' + rangeQuery(range));
     } catch (err) {
       throw err;
     }
   },
 
-  getProductAnalytics: async () => {
+  getProductAnalytics: async (range) => {
     try {
-      return await request('/admin/dashboard/products/analytics');
+      return await request('/admin/dashboard/products/analytics' + rangeQuery(range));
     } catch (err) {
       if (isAuthError(err)) throw err;
       return [];

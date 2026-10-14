@@ -35,21 +35,22 @@ class LuckyColorServiceTest {
     @BeforeEach
     void setUp() {
         service = new LuckyColorService(scoringService, new ColorRuleEngine(), interactionRepository);
-        lenient().when(scoringService.recommend(anyString(), any(), anyInt())).thenReturn(List.of());
+        lenient().when(scoringService.recommend(anyString(), any(), any(), anyInt())).thenReturn(List.of());
     }
 
     private LuckyColorDTO.Request request(String token, String day, String goal) {
-        return new LuckyColorDTO.Request(token, day, goal);
+        return new LuckyColorDTO.Request(token, day, goal, null);
     }
 
     @Test
     @DisplayName("ชื่อสีและ hex ที่ส่งกลับมาจากกฎชุดเดียวกับที่ใช้คัดสินค้า")
     void resultUsesSingleColorSource() {
+        // อังคาร + การงาน ไม่มีสีซ้ำกัน: สีการงาน 3 สีแรก แล้วช่องสุดท้ายจองให้สีวันเกิดอันดับแรก
         LuckyColorDTO.Result result = service.compute(request("t1", "อังคาร", "การงาน"));
 
-        assertThat(result.color()).isEqualTo("ดำ / เหลือง / ชมพู / ม่วง / แดง / แสด");
-        assertThat(result.colorHexes()).hasSize(6);
-        assertThat(result.reasoning()).startsWith("เกิดวันอังคาร สีมงคลที่เหมาะ");
+        assertThat(result.color()).isEqualTo("ฟ้า / น้ำเงิน / เทา / ดำ");
+        assertThat(result.colorHexes()).hasSize(4);
+        assertThat(result.reasoning()).startsWith("เกิดวันอังคาร เสริมด้านการงาน สีมงคลที่เหมาะ ได้แก่ สีฟ้า / น้ำเงิน / เทา / ดำ");
     }
 
     @Test
@@ -65,6 +66,19 @@ class LuckyColorServiceTest {
                 .isInstanceOf(InvalidRequestException.class).hasMessageContaining("อะไรก็ได้");
 
         verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("ส่งเพศต่อไปให้ตัวคัดสินค้า และเพศที่ไม่รู้จักต้องได้ InvalidRequestException")
+    void passesGenderToScoring() {
+        service.compute(new LuckyColorDTO.Request("t1", "จันทร์", null, "female"));
+        verify(scoringService).recommend("จันทร์", null, "FEMALE", LuckyColorService.MAX_PRODUCTS);
+
+        service.compute(new LuckyColorDTO.Request("t1", "จันทร์", null, null));
+        verify(scoringService).recommend("จันทร์", null, null, LuckyColorService.MAX_PRODUCTS);
+
+        assertThatThrownBy(() -> service.compute(new LuckyColorDTO.Request("t1", "จันทร์", null, "UNISEX")))
+                .isInstanceOf(InvalidRequestException.class).hasMessageContaining("UNISEX");
     }
 
     @Test

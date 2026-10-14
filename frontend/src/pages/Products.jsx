@@ -38,6 +38,10 @@ export default function Products() {
                 <img src={p.imageUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 10, padding: 8 }} />
               )}
             </div>
+            {/* หมวดหมู่จาก DB (โปโล / เสื้อยืด / เสื้อครอป) — แถบเดียวกับการ์ดหน้าแรก */}
+            {p.category && (
+              <div className="tone-tag"><span className="dot"></span>{p.category}</div>
+            )}
             <h3 style={{ fontSize: 14, margin: '0 0 4px' }}>{p.name}</h3>
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{formatMinPrice(p)}</div>
           </div>

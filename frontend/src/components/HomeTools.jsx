@@ -146,7 +146,7 @@ export function HomeQuickActions() {
         {icons.bag} ดูสินค้าทั้งหมด
       </button>
       <button type="button" className="home-quick-btn" onClick={() => navigate('/lucky-color')}>
-        {icons.sun} สีมงคลประจำวัน
+        {icons.sun} สีมงคลประจำวันเกิด
       </button>
     </div>
   );

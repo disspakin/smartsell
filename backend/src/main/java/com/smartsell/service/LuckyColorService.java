@@ -2,6 +2,7 @@ package com.smartsell.service;
 
 import com.smartsell.dto.LuckyColorDTO;
 import com.smartsell.entity.CustomerInteraction;
+import com.smartsell.entity.TargetGroup;
 import com.smartsell.exception.InvalidRequestException;
 import com.smartsell.repository.CustomerInteractionRepository;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,9 @@ public class LuckyColorService {
 
     /** token ยาวกว่านี้ถือว่าไม่ใช่ token จากหน้าเว็บเรา (หน้าเว็บสุ่มยาวไม่ถึง 20 ตัว) */
     private static final int MAX_TOKEN_LENGTH = 100;
+
+    /** สินค้าที่สีตรงแสดงได้สูงสุดเท่านี้ — หน้าเว็บเลื่อนดูด้วยลูกศร */
+    static final int MAX_PRODUCTS = 10;
 
     private final LuckyColorScoringService luckyColorScoringService;
     private final ColorRuleEngine colorRuleEngine;
@@ -57,15 +61,22 @@ public class LuckyColorService {
         if (goal != null && !colorRuleEngine.isKnownGoal(goal)) {
             throw new InvalidRequestException("ไม่รู้จักเป้าหมาย \"" + goal + "\"");
         }
+        String rawGender = trimToNull(req.gender());
+        String gender = TargetGroup.normalizeCustomerGender(rawGender);
+        if (rawGender != null && gender == null) {
+            throw new InvalidRequestException("ไม่รู้จักเพศ \"" + rawGender + "\"");
+        }
 
-        List<ColorRuleEngine.ColorDisplay> colors = colorRuleEngine.getLuckyColorDisplayByDay(day);
+        // เรียงตามคะแนนกลุ่มเดียวกับที่ใช้คัดสินค้า: ตรงทั้งวันเกิดและด้านที่เสริม > แค่ด้านที่เสริม > แค่วันเกิด
+        List<ColorRuleEngine.ColorDisplay> colors = colorRuleEngine.rankLuckyColors(day, goal);
         String colorName = colors.stream().map(ColorRuleEngine.ColorDisplay::thaiName).collect(Collectors.joining(" / "));
         List<String> hexes = colors.stream().map(ColorRuleEngine.ColorDisplay::hex).toList();
 
         String goalText = goal != null ? GOAL_TEXT.get(goal) : "ช่วยเสริมดวงโดยรวม";
-        String reasoning = "เกิดวัน" + day + " สีมงคลที่เหมาะ ได้แก่ สี" + colorName + " — " + goalText;
+        String forWhom = "เกิดวัน" + day + (goal != null ? " เสริมด้าน" + goal : "");
+        String reasoning = forWhom + " สีมงคลที่เหมาะ ได้แก่ สี" + colorName + " — " + goalText;
 
-        List<LuckyColorDTO.LuckyProduct> products = luckyColorScoringService.recommend(day, goal, 3);
+        List<LuckyColorDTO.LuckyProduct> products = luckyColorScoringService.recommend(day, goal, gender, MAX_PRODUCTS);
 
         if (goal != null) {
             recordSearch(trimToNull(req.sessionToken()), goal);

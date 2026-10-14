@@ -55,8 +55,32 @@ public class ColorRuleEngine {
         Map.entry("Mustard",      new ColorDisplay("เหลืองแก่", "#c9a800")),
         Map.entry("Sky Blue",     new ColorDisplay("ฟ้า", "#6fa8c9")),
         Map.entry("Navy",         new ColorDisplay("น้ำเงิน", "#1E3A8A")),
-        Map.entry("Brown",        new ColorDisplay("น้ำตาล", "#a0693a"))
+        Map.entry("Brown",        new ColorDisplay("น้ำตาล", "#a0693a")),
+        // สีที่มีแค่ใน LUCKY_COLOR_BY_GOAL — แสดงด้วยเมื่อลูกค้าเลือกด้านที่อยากเสริม
+        Map.entry("Gray",         new ColorDisplay("เทา", "#95a5a6")),
+        Map.entry("Gold",         new ColorDisplay("ทอง", "#d4af37")),
+        Map.entry("Peach",        new ColorDisplay("พีช", "#f6b48f"))
     );
+
+    // =====================================================================
+    // LUCKY COLOR RANKING
+    // คะแนนตามกลุ่ม: ตรงทั้งวันเกิดและด้านที่เสริม > ตรงแค่ด้านที่เสริม > ตรงแค่วันเกิด
+    // ใช้ทั้งเรียงวงกลมสีที่แสดง (rankLuckyColors) และคัดสินค้า (LuckyColorScoringService)
+    // =====================================================================
+    public static final int SCORE_DAY_AND_GOAL = 3;
+    public static final int SCORE_GOAL_ONLY = 2;
+    public static final int SCORE_DAY_ONLY = 1;
+
+    /** จำนวนสีมงคลที่แสดงบนหน้าเว็บ */
+    public static final int MAX_DISPLAY_COLORS = 4;
+
+    /** คะแนนกลุ่มจากว่าสีนั้นอยู่ในสีวันเกิด / สีด้านที่เสริมหรือไม่ — 0 ถ้าไม่อยู่ในทั้งสองชุด */
+    public static int luckyGroupScore(boolean inDay, boolean inGoal) {
+        if (inDay && inGoal) return SCORE_DAY_AND_GOAL;
+        if (inGoal) return SCORE_GOAL_ONLY;
+        if (inDay) return SCORE_DAY_ONLY;
+        return 0;
+    }
 
     public record ColorDisplay(String thaiName, String hex) {}
 
@@ -132,9 +156,34 @@ public class ColorRuleEngine {
         return goal != null && LUCKY_COLOR_BY_GOAL.containsKey(goal);
     }
 
-    /** ชื่อไทย + hex ของสีมงคลประจำวัน เรียงตามลำดับใน LUCKY_COLOR_BY_DAY */
-    public List<ColorDisplay> getLuckyColorDisplayByDay(String day) {
-        return getLuckyColorsByDay(day).stream().map(LUCKY_COLOR_DISPLAY::get).toList();
+    /**
+     * สีมงคลที่จะแสดง เรียงตามคะแนนกลุ่ม (ดู luckyGroupScore) ไม่เกิน MAX_DISPLAY_COLORS สี
+     *
+     * คะแนนเท่ากันเรียงตามลำดับใน rulebase: กลุ่มที่มีสีวันเกิดตามลำดับ LUCKY_COLOR_BY_DAY
+     * กลุ่มที่ตรงแค่ด้านที่เสริมตามลำดับ LUCKY_COLOR_BY_GOAL
+     *
+     * จองไว้อย่างน้อย 1 สีวันเกิดเสมอ — ถ้าสีด้านที่เสริมเต็ม 4 ช่องโดยไม่มีสีวันเกิดเลย
+     * (เช่น จันทร์ + ความรัก) ช่องสุดท้ายจะเป็นสีวันเกิดอันดับแรกแทน
+     * ไม่เลือกด้านที่เสริม (goal = null) ได้สีวันเกิดตามลำดับเดิม
+     */
+    public List<ColorDisplay> rankLuckyColors(String day, String goal) {
+        List<String> dayColors = getLuckyColorsByDay(day);
+        List<String> goalColors = getLuckyColorsByGoal(goal);
+
+        // สีวันเกิดก่อน แล้วต่อด้วยสีที่มีแค่ในด้านที่เสริม — sort ที่ stable จะรักษาลำดับนี้ไว้ในคะแนนเท่ากัน
+        List<String> candidates = new ArrayList<>(dayColors);
+        goalColors.stream().filter(c -> !dayColors.contains(c)).forEach(candidates::add);
+
+        List<String> ranked = candidates.stream()
+                .sorted(Comparator.comparingInt((String c) ->
+                        luckyGroupScore(dayColors.contains(c), goalColors.contains(c))).reversed())
+                .limit(MAX_DISPLAY_COLORS)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+
+        if (!dayColors.isEmpty() && ranked.stream().noneMatch(dayColors::contains)) {
+            ranked.set(ranked.size() - 1, dayColors.get(0));
+        }
+        return ranked.stream().map(LUCKY_COLOR_DISPLAY::get).toList();
     }
 
     /** Return recommended colors for a given goal (เสริมด้านอะไร) */
@@ -156,19 +205,16 @@ public class ColorRuleEngine {
         if (variantColor == null || targetColors.isEmpty()) return 1;
         String vc = variantColor.toLowerCase().trim();
 
+        // ไล่หาตรงเป๊ะให้ครบทุกสีก่อน แล้วค่อยหาตรงบางส่วน — ถ้าทำในรอบเดียว สีที่อยู่ก่อนในรายการ
+        // จะตอบ "ตรงบางส่วน" ไปก่อนเจอสีที่ตรงเป๊ะ เช่น "เหลือง" ชน alias "เหลืองทอง" ของ Gold ก่อนถึง Yellow
         for (String target : targetColors) {
-            List<String> aliases = COLOR_ALIASES.getOrDefault(target, List.of());
-
-            // Check canonical name itself
             if (vc.equals(target.toLowerCase())) return 3;
-
-            // Check aliases (exact)
-            for (String alias : aliases) {
+            for (String alias : COLOR_ALIASES.getOrDefault(target, List.of())) {
                 if (vc.equals(alias.toLowerCase())) return 3;
             }
-
-            // Check aliases (contains / substring — looser match)
-            for (String alias : aliases) {
+        }
+        for (String target : targetColors) {
+            for (String alias : COLOR_ALIASES.getOrDefault(target, List.of())) {
                 if (vc.contains(alias.toLowerCase()) || alias.toLowerCase().contains(vc)) return 2;
             }
         }

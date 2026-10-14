@@ -8,9 +8,13 @@ import com.smartsell.repository.ProductRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/admin/dashboard")
@@ -28,44 +32,59 @@ public class AdminDashboardController {
         this.productRepository = productRepository;
     }
 
+    // ทุก endpoint รับ ?from=YYYY-MM-DD&to=YYYY-MM-DD ไม่บังคับ (ดู DashboardPeriod) — ไม่ส่ง = ข้อมูลทั้งหมด
+
     @GetMapping("/summary")
-    public ResponseEntity<Map<String, Object>> getDashboardSummary() {
+    public ResponseEntity<Map<String, Object>> getDashboardSummary(@RequestParam(required = false) String from,
+                                                                   @RequestParam(required = false) String to) {
+        DashboardPeriod period = DashboardPeriod.of(from, to);
+        LocalDateTime start = period.start(), end = period.end();
         Map<String, Object> response = new HashMap<>();
 
-        long totalInteractions = interactionRepository.count();
-        long totalSessions = sessionRepository.count();
-        long totalViews = interactionRepository.countByEventType("VIEW");
-        long totalInterested = interactionRepository.countByEventType("INTERESTED_CLICK");
-        long totalAiRecommends = interactionRepository.countByEventType("AI_RECOMMENDED");
-
-        Double avgRating = interactionRepository.findAverageRating();
+        Double avgRating = interactionRepository.findAverageRating(start, end);
         response.put("averageRating", avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 0.0);
 
-        response.put("totalSessions", totalSessions);
-        response.put("totalViews", totalViews);
-        response.put("totalInterestedClicks", totalInterested);
+        response.put("totalSessions", sessionRepository.countCreatedBetween(start, end));
+        response.put("totalViews", interactionRepository.countByEventTypeBetween("VIEW", start, end));
+        response.put("totalInterestedClicks", interactionRepository.countByEventTypeBetween("INTERESTED_CLICK", start, end));
 
-        response.put("topInterestedProducts", formatProductList(interactionRepository.findTopInterestedProducts()));
-        response.put("topRecommendedProducts", formatProductList(interactionRepository.findTopRecommendedProducts()));
-        response.put("topViewedProducts", formatProductList(interactionRepository.findTopViewedProducts()));
+        putTopProducts(response, start, end);
+        // ปีแรกที่มีข้อมูล (ค.ศ.) — หน้าเว็บใช้ทำ dropdown ปี
+        response.put("firstDataYear", firstDataYear());
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/demand-analytics")
-    public ResponseEntity<Map<String, Object>> getDemandAnalytics() {
+    public ResponseEntity<Map<String, Object>> getDemandAnalytics(@RequestParam(required = false) String from,
+                                                                  @RequestParam(required = false) String to) {
+        DashboardPeriod period = DashboardPeriod.of(from, to);
+        LocalDateTime start = period.start(), end = period.end();
         Map<String, Object> response = new HashMap<>();
 
-        response.put("personalColorBreakdown", formatGroupResults(interactionRepository.countByPersonalColorGroup()));
-        response.put("occasionBreakdown", formatGroupResults(interactionRepository.countByOccasionGroup()));
-        response.put("luckyColorBreakdown", formatGroupResults(interactionRepository.countByLuckyColorGroup()));
-        response.put("sizeBreakdown", formatGroupResults(interactionRepository.countBySizeGroup()));
+        response.put("personalColorBreakdown", formatGroupResults(interactionRepository.countByPersonalColorGroup(start, end)));
+        response.put("occasionBreakdown", formatGroupResults(interactionRepository.countByOccasionGroup(start, end)));
+        response.put("luckyColorBreakdown", formatGroupResults(interactionRepository.countByLuckyColorGroup(start, end)));
+        response.put("sizeBreakdown", formatGroupResults(interactionRepository.countBySizeGroup(start, end)));
 
-        response.put("topInterestedProducts", formatProductList(interactionRepository.findTopInterestedProducts()));
-        response.put("topRecommendedProducts", formatProductList(interactionRepository.findTopRecommendedProducts()));
-        response.put("topViewedProducts", formatProductList(interactionRepository.findTopViewedProducts()));
+        putTopProducts(response, start, end);
 
         return ResponseEntity.ok(response);
+    }
+
+    private void putTopProducts(Map<String, Object> response, LocalDateTime start, LocalDateTime end) {
+        response.put("topInterestedProducts", formatProductList(interactionRepository.findTopProductsByEventType("INTERESTED_CLICK", start, end)));
+        response.put("topRecommendedProducts", formatProductList(interactionRepository.findTopProductsByEventType("AI_RECOMMENDED", start, end)));
+        response.put("topViewedProducts", formatProductList(interactionRepository.findTopProductsByEventType("VIEW", start, end)));
+    }
+
+    /** ปีแรกสุดที่มี session หรือ interaction — ยังไม่มีข้อมูลเลยใช้ปีปัจจุบัน */
+    private int firstDataYear() {
+        return Stream.of(sessionRepository.findFirstCreatedAt(), interactionRepository.findFirstCreatedAt())
+                .filter(Objects::nonNull)
+                .map(LocalDateTime::getYear)
+                .min(Integer::compare)
+                .orElse(LocalDate.now().getYear());
     }
 
     private List<Map<String, Object>> formatProductList(List<Object[]> rawList) {
@@ -96,8 +115,10 @@ public class AdminDashboardController {
     }
 
     @GetMapping("/products/analytics")
-    public ResponseEntity<List<Map<String, Object>>> getAllProductAnalytics() {
-        List<Object[]> rawList = interactionRepository.findAllProductAnalytics();
+    public ResponseEntity<List<Map<String, Object>>> getAllProductAnalytics(@RequestParam(required = false) String from,
+                                                                          @RequestParam(required = false) String to) {
+        DashboardPeriod period = DashboardPeriod.of(from, to);
+        List<Object[]> rawList = interactionRepository.findAllProductAnalytics(period.start(), period.end());
         Map<Long, String> fallbackImages = variantImageFallbacks();
         List<Map<String, Object>> result = new ArrayList<>();
         for (Object[] row : rawList) {

@@ -6,7 +6,8 @@ import java.util.Map;
 
 /**
  * Occasion → product category scoring rules.
- * Only Polo and T-Shirt categories are in the catalog.
+ * หมวดหมู่สินค้ามี 3 หมวด: โปโล / เสื้อยืด / เสื้อครอป (ดู database/normalize_categories.sql)
+ * เป็นคะแนน ไม่ใช่ตัวกรอง — 0 แปลว่าไม่เหมาะ แต่ยังถูกแนะนำได้ถ้าสินค้าที่เหมาะมีไม่พอ
  * Modify only this file to update occasion rules.
  */
 @Component
@@ -15,16 +16,19 @@ public class OccasionRuleEngine {
     // occasion → (category → score)
     private static final Map<String, Map<String, Integer>> OCCASION_SCORES = Map.of(
         "ทางการ", Map.of(
-            "Polo",   3,
-            "T-Shirt", 1
+            "โปโล",     3,
+            "เสื้อยืด",   0,
+            "เสื้อครอป",  0
         ),
         "ทั่วไป", Map.of(
-            "T-Shirt", 3,
-            "Polo",    2
+            "โปโล",     2,
+            "เสื้อยืด",   3,
+            "เสื้อครอป",  3
         ),
         "เข้ากิจกรรม", Map.of(
-            "T-Shirt", 3,
-            "Polo",    3
+            "โปโล",     2,
+            "เสื้อยืด",   3,
+            "เสื้อครอป",  1
         )
     );
 

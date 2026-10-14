@@ -3,6 +3,7 @@ package com.smartsell.service;
 import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.Product;
 import com.smartsell.entity.ProductVariant;
+import com.smartsell.entity.TargetGroup;
 import com.smartsell.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * Scoring engine for Personal Color recommendations.
- * Pipeline: filter (budget + size) → score by color + occasion → sort → top N
+ * Pipeline: filter (gender + budget + size) → score by color + occasion → sort → top N
  */
 @Service
 public class ProductScoringService {
@@ -36,10 +37,14 @@ public class ProductScoringService {
      *
      * Scoring:
      *   Color match (best variant) : 3 = exact/alias, 2 = partial, 1 = fallback
-     *   Occasion match             : 3 = matched category, 0 = not matched
+     *   Occasion match             : 0–3 by category (see OccasionRuleEngine)
+     *
+     * gender (MALE / FEMALE / ANY / null) เป็นตัวกรอง ไม่ใช่คะแนน — เสื้อผิดเพศต้องไม่หลุดมาเลย
+     * เสื้อเด็กไม่ถูกแนะนำทุกกรณี (ดู TargetGroup.suitsAdult)
      */
     public List<ProductDTO> recommendByPersonalColor(String season, String occasion, java.math.BigDecimal budgetMin,
-                                                     java.math.BigDecimal budgetMax, String size, int topN) {
+                                                     java.math.BigDecimal budgetMax, String size, String gender,
+                                                     int topN) {
         if (season == null && occasion == null) {
             return List.of();
         }
@@ -47,6 +52,7 @@ public class ProductScoringService {
         List<Product> allProducts = productRepository.findAllWithVariants();
 
         List<ScoredProduct> scored = allProducts.stream()
+                .filter(p -> TargetGroup.suitsAdult(p.getTargetGroup(), gender))
                 .filter(p -> budgetMin == null || p.getPrice().compareTo(budgetMin) >= 0)
                 .filter(p -> budgetMax == null || p.getPrice().compareTo(budgetMax) <= 0)
                 .filter(p -> size == null || p.getVariants().stream().anyMatch(v -> size.equalsIgnoreCase(v.getSize())))
@@ -100,7 +106,7 @@ public class ProductScoringService {
         String imageUrl = matchedColors.isEmpty() ? p.getImageUrl() : matchedColors.get(0).imageUrl();
         return new ProductDTO(
                 p.getId(), p.getName(), p.getCategory(), p.getPrice(),
-                p.getDescription(), imageUrl, variants, matchedColors);
+                p.getDescription(), imageUrl, variants, matchedColors, p.getTargetGroup());
     }
 
     private record ScoredProduct(Product product, int score) {}

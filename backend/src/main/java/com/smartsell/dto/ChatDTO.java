@@ -10,5 +10,6 @@ public class ChatDTO {
     // what comes back to render as the next AI bubble + updated preference summary + top 3 recommended products
     public record ChatResponse(Long sessionId, String reply, PreferenceSummary preferences, List<ProductDTO> products) {}
 
-    public record PreferenceSummary(String personalColor, String occasion, String budget, String size) {}
+    // gender: MALE / FEMALE / ANY (ไม่ระบุ) หรือ null ถ้ายังไม่ได้ถาม
+    public record PreferenceSummary(String personalColor, String occasion, String budget, String size, String gender) {}
 }

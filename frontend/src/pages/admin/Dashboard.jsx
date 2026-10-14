@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, authApi } from '../../api/client';
+import DateRangeFilter, { periodFromSearchParams, periodToSearch } from '../../components/DateRangeFilter';
 import { STAFF_LOGIN_PATH, STAFF_PRODUCT_ANALYTICS_PATH } from '../../config/staffRoutes';
 
 export default function AdminDashboard() {
@@ -10,24 +11,39 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [user, setUser] = useState({ name: 'ผู้จัดการร้าน UTCC', role: 'STORE_MANAGER' });
 
+  const [firstYear, setFirstYear] = useState(null);
+
   const navigate = useNavigate();
+  // ช่วงเวลาอยู่ใน URL — refresh ไม่หลุด และส่งต่อให้หน้า Product Analytics ตอนกด "ดูเพิ่มเติม"
+  const [searchParams, setSearchParams] = useSearchParams();
+  const period = periodFromSearchParams(searchParams);
+  const periodSearch = periodToSearch(period);
 
   useEffect(() => {
     const { name, role } = authApi.getSession();
     if (name) setUser({ name, role: role || 'STORE_MANAGER' });
-
-    fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [period.from, period.to]);
+
+  const changePeriod = (next) => {
+    setSearchParams(new URLSearchParams(periodToSearch(next)), { replace: true });
+  };
+
+  const openProductAnalytics = () => navigate(STAFF_PRODUCT_ANALYTICS_PATH + periodSearch);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     setError('');
     try {
       const [sumRes, demRes] = await Promise.all([
-        adminApi.getSummary(),
-        adminApi.getDemandAnalytics(),
+        adminApi.getSummary(period),
+        adminApi.getDemandAnalytics(period),
       ]);
       setSummary(sumRes);
+      setFirstYear(sumRes.firstDataYear);
       setDemand(demRes);
     } catch (err) {
       // backend ปฏิเสธเพราะไม่มีสิทธิ์ (เช่น token หมดอายุระหว่างเปิดหน้าค้างไว้)
@@ -151,6 +167,8 @@ export default function AdminDashboard() {
 
       {/* Main Content Container */}
       <div style={{ maxWidth: '1200px', margin: '32px auto 0', padding: '0 24px' }}>
+        <DateRangeFilter period={period} onChange={changePeriod} firstYear={firstYear} />
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '80px 0', color: '#64748b' }}>
             <div style={{ fontSize: '24px', marginBottom: '12px' }}>📊</div>
@@ -182,6 +200,16 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <>
+            {summary && !summary.totalSessions && !summary.totalViews && !summary.totalInterestedClicks
+              && !summary.topRecommendedProducts?.length && (
+              <div style={{
+                backgroundColor: '#f1f5f9', color: '#475569', padding: '14px 18px', borderRadius: '12px',
+                marginBottom: '24px', fontSize: '13.5px', textAlign: 'center',
+              }}>
+                ไม่มีข้อมูลในช่วงนี้
+              </div>
+            )}
+
             {/* Stat Overview Cards */}
             <div style={{
               display: 'grid',
@@ -286,7 +314,7 @@ export default function AdminDashboard() {
                       จัดอันดับสินค้าที่ลูกค้ากดถูกใจ (Like) และแสดงความสนใจซื้อหน้าร้าน
                     </p>
                   </div>
-                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
+                  <button onClick={openProductAnalytics} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(demand?.topInterestedProducts || summary?.topInterestedProducts || []).slice(0, 5).map((p, idx) => (
@@ -355,7 +383,7 @@ export default function AdminDashboard() {
                       จัดอันดับสินค้าที่ระบบ AI Personal Assistant / Color Matching แนะนำให้ลูกค้าสำเร็จ
                     </p>
                   </div>
-                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
+                  <button onClick={openProductAnalytics} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(demand?.topRecommendedProducts || summary?.topRecommendedProducts || []).slice(0, 5).map((p, idx) => (
@@ -424,7 +452,7 @@ export default function AdminDashboard() {
                       จัดอันดับสินค้าที่มีการคลิกเข้าไปดูรายละเอียด (Views) มากที่สุด
                     </p>
                   </div>
-                  <button onClick={() => navigate(STAFF_PRODUCT_ANALYTICS_PATH)} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
+                  <button onClick={openProductAnalytics} style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600' }}>ดูเพิ่มเติม</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {(demand?.topViewedProducts || summary?.topViewedProducts || []).slice(0, 5).map((p, idx) => (
@@ -496,7 +524,7 @@ export default function AdminDashboard() {
                   🎨 Personal Color Seasons
                 </h3>
                 <p style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '20px' }}>
-                  สถิติพาเลตต์สีที่ลูกค้าทำ Quiz ได้รับคำตอบ
+                  สถิติคำตอบที่ลูกค้าคุยกับ AI Personal Assistant ว่าตัวเองเป็นโทนสีผิวและซีซันสีใด
                 </p>
                 {renderBarGroup('Personal Color', demand?.personalColorBreakdown, ['#f59e0b', '#3b82f6', '#d97706', '#60a5fa'])}
               </div>

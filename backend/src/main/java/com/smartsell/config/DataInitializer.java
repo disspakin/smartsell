@@ -33,7 +33,6 @@ public class DataInitializer implements CommandLineRunner {
 
     private final AppUserRepository userRepository;
     private final ProductRepository productRepository;
-    private final CustomerInteractionRepository interactionRepository;
     private final PasswordEncoder passwordEncoder;
     private final String seedAdminEmail;
     private final String seedAdminPassword;
@@ -44,13 +43,11 @@ public class DataInitializer implements CommandLineRunner {
      */
     public DataInitializer(AppUserRepository userRepository,
                            ProductRepository productRepository,
-                           CustomerInteractionRepository interactionRepository,
                            PasswordEncoder passwordEncoder,
                            @Value("${app.seed.admin-email:}") String seedAdminEmail,
                            @Value("${app.seed.admin-password:}") String seedAdminPassword) {
         this.userRepository = userRepository;
         this.productRepository = productRepository;
-        this.interactionRepository = interactionRepository;
         this.passwordEncoder = passwordEncoder;
         this.seedAdminEmail = seedAdminEmail == null ? "" : seedAdminEmail.trim().toLowerCase(Locale.ROOT);
         this.seedAdminPassword = seedAdminPassword == null ? "" : seedAdminPassword;
@@ -113,7 +110,7 @@ public class DataInitializer implements CommandLineRunner {
         // Product 1: UTCC Polo Shirt - Gold
         Product poloGold = new Product();
         poloGold.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีเหลืองทอง)");
-        poloGold.setCategory("Polo");
+        poloGold.setCategory("โปโล");
         poloGold.setPrice(new BigDecimal("250.00"));
         poloGold.setDescription("เสื้อโปโลผ้า Cotton เนื้อนุ่ม ระบายอากาศได้ดี ตราสัญลักษณ์ UTCC สีเหลืองทองสง่างาม");
         poloGold.setImageUrl("https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80");
@@ -124,7 +121,7 @@ public class DataInitializer implements CommandLineRunner {
         // Product 2: UTCC Polo Shirt - Navy Blue
         Product poloNavy = new Product();
         poloNavy.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีน้ำเงินเข้ม)");
-        poloNavy.setCategory("Polo");
+        poloNavy.setCategory("โปโล");
         poloNavy.setPrice(new BigDecimal("250.00"));
         poloNavy.setDescription("เสื้อโปโลทรงสมาร์ท สีน้ำเงินเข้มคลาสสิก ปักโลโก้ UTCC ที่อกซ้าย เหมาะสำหรับใส่เรียนและงานทางการ");
         poloNavy.setImageUrl("https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?auto=format&fit=crop&w=600&q=80");
@@ -135,7 +132,7 @@ public class DataInitializer implements CommandLineRunner {
         // Product 3: UTCC Polo Shirt - White
         Product poloWhite = new Product();
         poloWhite.setName("เสื้อโปโลมหาวิทยาลัย UTCC (สีขาวเรียบหรู)");
-        poloWhite.setCategory("Polo");
+        poloWhite.setCategory("โปโล");
         poloWhite.setPrice(new BigDecimal("250.00"));
         poloWhite.setDescription("เสื้อโปโลสีขาวสะอาด ตัดเย็บประณีต ผ้าซับเหงื่อได้ไว แมตช์กับกางเกงหรือกระโปรงได้ทุกสไตล์");
         poloWhite.setImageUrl("https://images.unsplash.com/photo-1625910513413-7fc214f479a3?auto=format&fit=crop&w=600&q=80");
@@ -146,7 +143,7 @@ public class DataInitializer implements CommandLineRunner {
         // Product 4: UTCC T-Shirt - Sky Blue
         Product tshirtSky = new Product();
         tshirtSky.setName("เสื้อยืดสกรีน UTCC Freshy (สีฟ้า)");
-        tshirtSky.setCategory("T-Shirt");
+        tshirtSky.setCategory("เสื้อยืด");
         tshirtSky.setPrice(new BigDecimal("180.00"));
         tshirtSky.setDescription("เสื้อยืดคอกลมผ้า Supersoft สกรีนลาย UTCC Smart Campus สีฟ้าสดใส สวมใส่สบายสไตล์ชิลๆ");
         tshirtSky.setImageUrl("https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=600&q=80");
@@ -157,24 +154,13 @@ public class DataInitializer implements CommandLineRunner {
         // Product 5: UTCC T-Shirt - Black Premium
         Product tshirtBlack = new Product();
         tshirtBlack.setName("เสื้อยืดสกรีน UTCC Minimal (สีดำ)");
-        tshirtBlack.setCategory("T-Shirt");
+        tshirtBlack.setCategory("เสื้อยืด");
         tshirtBlack.setPrice(new BigDecimal("200.00"));
         tshirtBlack.setDescription("เสื้อยืดทรงโอเวอร์ไซส์สีดำ สกรีนอักษร UTCC สไตล์มินิมอล เท่ได้ทุกวัน");
         tshirtBlack.setImageUrl("https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80");
         createVariants(tshirtBlack, "Black", "#000000", Arrays.asList("M", "L", "XL"));
 
         productRepository.save(tshirtBlack);
-
-        // Product 6: UTCC Campus Jacket Navy
-        Product jacketNavy = new Product();
-        jacketNavy.setName("เสื้อแจ็คเก็ตวอร์ม UTCC Sport (สีน้ำเงิน-ทอง)");
-        jacketNavy.setCategory("Jacket");
-        jacketNavy.setPrice(new BigDecimal("220.00"));
-        jacketNavy.setDescription("เสื้อแจ็คเก็ตกีฬามหาวิทยาลัย UTCC ผ้าวอร์มพรีเมียม ซิปรูดลื่น ใส่กันลมหรือใส่ในห้องแอร์เย็นๆ");
-        jacketNavy.setImageUrl("https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80");
-        createVariants(jacketNavy, "Navy Gold", "#0F172A", Arrays.asList("M", "L", "XL"));
-
-        productRepository.save(jacketNavy);
     }
 
     private void createVariants(Product p, String color, String colorHex, List<String> sizes) {
@@ -185,38 +171,6 @@ public class DataInitializer implements CommandLineRunner {
             v.setColorHex(colorHex);
             v.setSize(size);
             p.getVariants().add(v);
-        }
-    }
-
-
-
-    private void seedInteractions() {
-        if (interactionRepository.count() > 0) return;
-
-        List<Product> products = productRepository.findAll();
-        if (products.isEmpty()) return;
-
-        String[] personalColors = {"Spring", "Summer", "Autumn", "Winter"};
-        String[] occasions = {"ใส่เรียน", "ใส่ชิวๆ", "เข้ากิจกรรม", "ทางการ"};
-        String[] luckyColors = {"การงาน/การเรียน", "การเงิน/โชคลาภ", "ความรัก/เมตตา", "สุขภาพ/แคล้วคลาด"};
-        String[] sizes = {"S", "M", "L", "XL"};
-        String[] eventTypes = {"VIEW", "VIEW", "INTERESTED_CLICK", "AI_RECOMMENDED"};
-
-        // Seed 40 realistic interactions
-        for (int i = 0; i < 40; i++) {
-            Product p = products.get(i % products.size());
-            String pc = personalColors[i % personalColors.length];
-            String occ = occasions[i % occasions.length];
-            String lc = luckyColors[i % luckyColors.length];
-            String sz = sizes[i % sizes.length];
-            String evt = eventTypes[i % eventTypes.length];
-            BigDecimal b = new BigDecimal(200 + (i * 25 % 500));
-
-            CustomerInteraction ci = new CustomerInteraction(null, p, evt, pc, occ, lc, sz, b);
-            if ("AI_RECOMMENDED".equals(evt) || "INTERESTED_CLICK".equals(evt)) {
-                ci.setRating(4 + (i % 2)); // 4 or 5 stars
-            }
-            interactionRepository.save(ci);
         }
     }
 }

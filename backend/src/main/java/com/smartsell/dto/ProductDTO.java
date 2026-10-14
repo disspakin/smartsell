@@ -19,16 +19,19 @@ public record ProductDTO(
         List<MatchedColor> matchedColors,
         // ช่วงราคาจาก effectivePrice ของทุก variant — หน้ารายการแสดง "150 – 180 บาท" เมื่อไม่เท่ากัน
         BigDecimal minPrice,
-        BigDecimal maxPrice
+        BigDecimal maxPrice,
+        // MALE / FEMALE / UNISEX / KIDS (ดู TargetGroup)
+        String targetGroup
 ) {
     public ProductDTO(Long id, String name, String category, BigDecimal price, String description,
-                      String imageUrl, List<VariantDTO> variants) {
-        this(id, name, category, price, description, imageUrl, variants, null);
+                      String imageUrl, List<VariantDTO> variants, String targetGroup) {
+        this(id, name, category, price, description, imageUrl, variants, null, targetGroup);
     }
 
     public ProductDTO(Long id, String name, String category, BigDecimal price, String description,
-                      String imageUrl, List<VariantDTO> variants, List<MatchedColor> matchedColors) {
-        this(id, name, category, price, description, imageUrl, variants, matchedColors, null, null);
+                      String imageUrl, List<VariantDTO> variants, List<MatchedColor> matchedColors,
+                      String targetGroup) {
+        this(id, name, category, price, description, imageUrl, variants, matchedColors, null, null, targetGroup);
     }
 
     // ถ้า product ไม่มีรูปของตัวเอง ใช้รูปของ variant แรกที่มีรูปแทน

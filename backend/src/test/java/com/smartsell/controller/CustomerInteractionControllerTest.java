@@ -54,12 +54,16 @@ class CustomerInteractionControllerTest {
     @Test
     @DisplayName("ลูกค้าที่ไม่มี session (ยังไม่เคยคุยกับผู้ช่วย AI) บันทึก VIEW ได้")
     void recordsViewWithoutSession() throws Exception {
-        long before = interactionRepository.countByEventType("VIEW");
+        long before = countViews();
 
         postInteraction("{\"sessionId\":null,\"productId\":" + productId + ",\"eventType\":\"VIEW\"}", 200);
         postInteraction("{\"productId\":" + productId + ",\"eventType\":\"INTERESTED_CLICK\"}", 200);
 
-        assertThat(interactionRepository.countByEventType("VIEW")).isEqualTo(before + 1);
+        assertThat(countViews()).isEqualTo(before + 1);
+    }
+
+    private long countViews() {
+        return interactionRepository.countByEventTypeBetween("VIEW", DashboardPeriod.EARLIEST, DashboardPeriod.LATEST);
     }
 
     @Test

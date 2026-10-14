@@ -25,10 +25,11 @@ CREATE TABLE email_otp (
 CREATE TABLE product (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(150) NOT NULL,
-    category    VARCHAR(50),          -- Polo, T-Shirt, ...
+    category    VARCHAR(50),          -- โปโล / เสื้อยืด / เสื้อครอป (ดู normalize_categories.sql)
     price       NUMERIC(10,2) NOT NULL,
     description TEXT,
     image_url   VARCHAR(500),
+    target_group VARCHAR(10) NOT NULL DEFAULT 'UNISEX', -- MALE / FEMALE / UNISEX / KIDS
     created_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -53,6 +54,7 @@ CREATE TABLE customer_session (
     budget_min        NUMERIC(10,2),
     budget_max        NUMERIC(10,2),
     size              VARCHAR(10),
+    gender            VARCHAR(10),    -- MALE / FEMALE / ANY (ไม่ระบุ)
     birth_weekday     VARCHAR(15),
     lucky_goal        VARCHAR(30),
     preferences_json  JSONB,          -- anything else the LLM extracts, kept flexible

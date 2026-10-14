@@ -177,7 +177,7 @@ public class GeminiClientService {
       คุณคือ SmartSell AI ผู้ช่วยแนะนำการเลือกซื้อเสื้อผ้าส่วนบุคคลของร้านค้ามหาวิทยาลัย UTCC
       หน้าที่หลักของคุณคือ สอบถามความต้องการ (Preferences) ของลูกค้า เพื่อนำไปแนะนำสินค้าที่เหมาะสม
       
-      ลำดับการถาม Preference มีเพียง 4 ด้านนี้เท่านั้น (ห้ามถามสีมงคล หรือ lucky_color โดยเด็ดขาด เพราะแยกฟีเจอร์ไปแล้ว):
+      ลำดับการถาม Preference มีเพียง 5 ด้านนี้เท่านั้น (ห้ามถามสีมงคล หรือ lucky_color โดยเด็ดขาด เพราะแยกฟีเจอร์ไปแล้ว):
       1. personal_color (Spring, Summer, Autumn, Winter)
       2. occasion (เช่น ทั่วไป, เข้ากิจกรรม, ทางการ)
       3. budget_min / budget_max (สินค้าในร้านราคา 150 - 250 บาท ตอนถามงบให้เสนอตัวเลือก ไม่เกิน 180 บาท, มากกว่า 200 บาท หรือไม่ระบุ
@@ -185,19 +185,22 @@ public class GeminiClientService {
          ไม่เกิน X = budget_min null, budget_max X / มากกว่า X = budget_min X, budget_max null
          ไม่ระบุ หรือไม่จำกัดงบ = budget_min 0, budget_max null — ห้ามคืน null ทั้งคู่ เพราะระบบจะถือว่ายังไม่ได้ตอบ)
       4. size (เช่น S, M, L, XL, XXL)
-      
+      5. gender — ถามว่าลูกค้าเป็นผู้ชายหรือผู้หญิง เพื่อเลือกทรงเสื้อให้ถูก ตอนถามให้เสนอตัวเลือก ชาย, หญิง หรือไม่ระบุเพศ
+         ชาย = "MALE" / หญิง = "FEMALE" / ไม่ระบุ ไม่อยากบอก หรือดูได้ทุกแบบ = "ANY" — ห้ามคืน null ถ้าลูกค้าตอบแล้ว
+         เพราะระบบจะถือว่ายังไม่ได้ตอบ
+
       กฎสำคัญมาก:
       - ต้องสื่อสารและถาม-ตอบเป็น "ภาษาไทย" เท่านั้น ด้วยน้ำเสียงสุภาพและเป็นกันเอง (ลงท้ายด้วย ค่ะ/นะคะ)
       - ห้ามถามเรื่องสีมงคล หรือ lucky color เป็นอันขาด!
       - ถามเพียง 1 ข้อต่อครั้งตามลำดับข้างต้น
-      - อย่าสร้างคำถามนอกเหนือจาก 4 ข้อนี้ (ยกเว้นถามกลับว่าหมายถึงเสื้อตัวไหน ตอนลูกค้าถามเรื่องไซส์)
-      
-      - เมื่อได้ข้อมูลครบทั้ง 4 ด้านแล้ว ไม่ต้องถามคำถามเพิ่ม ให้แจ้งลูกค้าว่าได้ข้อมูลครบถ้วนแล้วและกำลังแนะนำสินค้าให้
+      - อย่าสร้างคำถามนอกเหนือจาก 5 ข้อนี้ (ยกเว้นถามกลับว่าหมายถึงเสื้อตัวไหน ตอนลูกค้าถามเรื่องไซส์)
+
+      - เมื่อได้ข้อมูลครบทั้ง 5 ด้านแล้ว ไม่ต้องถามคำถามเพิ่ม ให้แจ้งลูกค้าว่าได้ข้อมูลครบถ้วนแล้วและกำลังแนะนำสินค้าให้
       - อย่าแนะนำชื่อสินค้าหรือคำนวณคะแนนด้วยตนเอง (ระบบหลังบ้านจะแสดงสินค้าให้เอง)
       - ตอบสั้น 1-2 ประโยค เหมือนพนักงานร้านพิมพ์แชทคุยกับลูกค้า รับคำตอบลูกค้าสั้นๆ ก่อน แล้วค่อยถามข้อต่อไป
       - ห้ามใช้ markdown หรือสัญลักษณ์จัดรูปแบบ (** __ # - * หรือเลขข้อ) ใน reply
       
-      คำถามเรื่องร้าน ไซส์ และสต็อก: ลูกค้าถามได้ทุกเมื่อ แม้ยังตอบ 4 ข้อไม่ครบ ให้ตอบตาม "กฎเรื่องร้าน" ท้าย prompt นี้
+      คำถามเรื่องร้าน ไซส์ และสต็อก: ลูกค้าถามได้ทุกเมื่อ แม้ยังตอบ 5 ข้อไม่ครบ ให้ตอบตาม "กฎเรื่องร้าน" ท้าย prompt นี้
       และห้ามต่อท้ายคำตอบเรื่องเหล่านี้ด้วยคำถาม preference (Personal Color ฯลฯ)
 
       กรณีพิเศษ — Personal Color:
@@ -214,7 +217,8 @@ public class GeminiClientService {
            "occasion": "ค่าที่ระบุ หรือ null",
            "budget_min": ตัวเลข หรือ null,
            "budget_max": ตัวเลข หรือ null,
-           "size": "ไซส์ หรือ null"
+           "size": "ไซส์ หรือ null",
+           "gender": "MALE หรือ FEMALE หรือ ANY หรือ null"
         }
       }
       """;
@@ -239,7 +243,7 @@ public class GeminiClientService {
         ให้ตอบประโยคนี้เท่านั้น ห้ามตอบเนื้อหาเรื่องนั้น และห้ามเพิ่มอะไรต่อท้าย:
         "ขออภัยค่ะ ไม่มีข้อมูลเรื่องนี้ในฐานระบบข้อมูลของร้านค้าค่ะ"
         (เรื่องที่เกี่ยวกับร้านแต่ไม่มีข้อมูล เช่น ที่จอดรถ ให้ใช้ข้อความที่มีเบอร์โทรด้านบนแทน
-        ส่วนคำทักทาย และคำตอบของลูกค้าต่อคำถามที่ผู้ช่วยถามไป เช่น โทนสี โอกาส งบ ไซส์ ไม่ถือว่านอกเรื่อง)
+        ส่วนคำทักทาย และคำตอบของลูกค้าต่อคำถามที่ผู้ช่วยถามไป เช่น โทนสี โอกาส งบ ไซส์ เพศ ไม่ถือว่านอกเรื่อง)
       - ตอบเฉพาะสิ่งที่ถาม สั้นๆ 1 ประโยค ห้ามแถมข้อมูลร้านเรื่องอื่นที่ไม่ได้ถาม
         ตัวอย่าง: ลูกค้า "ร้านอยู่ไหน" → "ร้านอยู่ที่ตึก 15 ชั้น 1 ใกล้หอประชุมค่ะ"
         (ตัวอย่างนี้แค่รูปแบบ ข้อมูลจริงให้ใช้จากข้อมูลร้านท้าย prompt เสมอ)
@@ -309,6 +313,7 @@ public class GeminiClientService {
                     if (prefs.has("size") && !prefs.get("size").isNull()) resp.setSize(prefs.get("size").asText());
                     if (prefs.has("budget_min") && !prefs.get("budget_min").isNull()) resp.setBudgetMin(prefs.get("budget_min").asDouble());
                     if (prefs.has("budget_max") && !prefs.get("budget_max").isNull()) resp.setBudgetMax(prefs.get("budget_max").asDouble());
+                    if (prefs.has("gender") && !prefs.get("gender").isNull()) resp.setGender(prefs.get("gender").asText());
                 }
                 
                 // If reply is valid and in Thai
@@ -352,6 +357,18 @@ public class GeminiClientService {
             return resp;
         }
         
+        // 5. Gender — เช็คก่อนงบ เพราะ "ไม่ระบุ" ชนกับคำตอบเรื่องงบ (ปุ่มตอบด่วนจึงใช้ "ไม่ระบุเพศ")
+        //    และเช็ค "หญิง" ก่อน "ชาย" เพราะ "ผู้หญิง" ไม่มีคำว่าชาย แต่ทั้งคู่ต้องจับให้ได้
+        String gender = lower.contains("ไม่ระบุเพศ") ? "ANY"
+                : lower.contains("หญิง") ? "FEMALE"
+                : lower.contains("ชาย") ? "MALE"
+                : null;
+        if (gender != null) {
+            resp.setGender(gender);
+            resp.setReply("รับทราบค่ะ ได้ข้อมูลครบถ้วนแล้ว ระบบได้คัดเลือกสินค้าที่เหมาะกับคุณที่สุดมาให้ชมด้านล่างนะคะ ✨");
+            return resp;
+        }
+
         // 2. Occasion
         if (lower.contains("กิจกรรม") || lower.contains("ทั่วไป") || lower.contains("ทางการ") || lower.contains("เรียน") || lower.contains("เที่ยว") || lower.contains("ทำงาน") || lower.contains("casual") || lower.contains("formal")) {
             resp.setOccasion(newMessage.trim());
@@ -380,11 +397,11 @@ public class GeminiClientService {
             return resp;
         }
         
-        // 4. Size (Final step - no lucky color question!)
+        // 4. Size → ถามเพศเป็นข้อสุดท้าย (no lucky color question!)
         if (lower.equals("s") || lower.equals("m") || lower.equals("l") || lower.equals("xl") || lower.equals("xxl")) {
             String size = lower.toUpperCase();
             resp.setSize(size);
-            resp.setReply("บันทึกไซส์ " + size + " ให้เรียบร้อยค่ะ! ได้ข้อมูลครบถ้วนแล้ว ระบบได้คัดเลือกสินค้าที่เหมาะกับคุณที่สุดมาให้ชมด้านล่างนะคะ ✨");
+            resp.setReply("บันทึกไซส์ " + size + " ให้เรียบร้อยค่ะ! ข้อสุดท้าย คุณเป็นผู้ชายหรือผู้หญิงคะ จะได้เลือกทรงเสื้อให้ถูก (ชาย, หญิง, ไม่ระบุเพศ)");
             return resp;
         }
         
@@ -500,6 +517,7 @@ public class GeminiClientService {
         private Double budgetMin;
         private Double budgetMax;
         private String size;
+        private String gender;
 
         public String getReply() { return reply; }
         public void setReply(String reply) { this.reply = reply; }
@@ -513,5 +531,7 @@ public class GeminiClientService {
         public void setBudgetMax(Double budgetMax) { this.budgetMax = budgetMax; }
         public String getSize() { return size; }
         public void setSize(String size) { this.size = size; }
+        public String getGender() { return gender; }
+        public void setGender(String gender) { this.gender = gender; }
     }
 }

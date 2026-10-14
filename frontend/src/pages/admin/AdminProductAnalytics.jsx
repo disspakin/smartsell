@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, authApi } from '../../api/client';
+import DateRangeFilter, { periodFromSearchParams, periodToSearch } from '../../components/DateRangeFilter';
 import { STAFF_LOGIN_PATH, STAFF_DASHBOARD_PATH } from '../../config/staffRoutes';
 
 export default function AdminProductAnalytics() {
@@ -12,20 +13,34 @@ export default function AdminProductAnalytics() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('recommendedDesc');
 
+  const [firstYear, setFirstYear] = useState(null);
+
   const navigate = useNavigate();
+  // ช่วงเวลามาจาก URL ที่ Dashboard ส่งต่อมา (?mode=&from=&to=) — กลับไป Dashboard ก็ใช้ช่วงเดิม
+  const [searchParams, setSearchParams] = useSearchParams();
+  const period = periodFromSearchParams(searchParams);
 
   useEffect(() => {
     const { name, role } = authApi.getSession();
     if (name) setUser({ name, role: role || 'STORE_MANAGER' });
 
-    fetchData();
+    // ปีแรกที่มีข้อมูล สำหรับ dropdown ปี — ได้จาก summary ที่ Dashboard ใช้อยู่แล้ว
+    adminApi.getSummary().then((res) => setFirstYear(res.firstDataYear)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [period.from, period.to]);
+
+  const changePeriod = (next) => {
+    setSearchParams(new URLSearchParams(periodToSearch(next)), { replace: true });
+  };
 
   const fetchData = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await adminApi.getProductAnalytics();
+      const data = await adminApi.getProductAnalytics(period);
       setProducts(data);
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
@@ -96,7 +111,7 @@ export default function AdminProductAnalytics() {
           gap: '16px',
         }}>
           <button 
-            onClick={() => navigate(STAFF_DASHBOARD_PATH)}
+            onClick={() => navigate(STAFF_DASHBOARD_PATH + periodToSearch(period))}
             style={{
               background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', cursor: 'pointer',
               fontSize: '13px', fontWeight: '600', padding: '7px 14px', borderRadius: '20px',
@@ -158,6 +173,8 @@ export default function AdminProductAnalytics() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '32px auto 0', padding: '0 24px' }}>
+        <DateRangeFilter period={period} onChange={changePeriod} firstYear={firstYear} />
+
         {/* Controls Section */}
         <div style={{
           display: 'flex',

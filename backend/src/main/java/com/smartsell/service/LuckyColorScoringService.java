@@ -3,6 +3,7 @@ package com.smartsell.service;
 import com.smartsell.dto.LuckyColorDTO;
 import com.smartsell.entity.Product;
 import com.smartsell.entity.ProductVariant;
+import com.smartsell.entity.TargetGroup;
 import com.smartsell.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 
@@ -19,15 +20,15 @@ import java.util.Objects;
  * สินค้าหลายสี (โปโล, เสื้อสีพื้น 16 สี) จึงแนะนำได้ทุกวันเกิดในสีที่ตรงกับวันนั้น
  * ลูกค้าซื้อเสื้อตัวเดียวสีเดียว สีอื่นที่สินค้ามีจึงไม่ควรมาลดหรือเพิ่มคะแนน
  *
- * คะแนนของหนึ่งสี = 2 × ความตรงกับสีวันเกิด + 1 × ความตรงกับสีตามเป้าหมาย (เป้าหมายไม่บังคับ)
- *   ความตรง: ตรงเป๊ะ/ชื่อเรียกตรง = 1.0, ตรงบางส่วน (เช่น "ดำ-ครีม" กับ ดำ) = 0.6, ไม่ตรง = 0
- * หนึ่งสินค้าขึ้นได้การ์ดเดียว ไม่ให้โปโลกินทั้ง 3 ช่อง
+ * คะแนนของหนึ่งสี = คะแนนกลุ่ม × ความตรง (เป้าหมายไม่บังคับ)
+ *   คะแนนกลุ่ม (ColorRuleEngine.luckyGroupScore): ตรงทั้งวันเกิดและเป้าหมาย = 3, แค่เป้าหมาย = 2, แค่วันเกิด = 1
+ *   ความตรง: ตรงเป๊ะ/ชื่อเรียกตรง = 1.0, ตรงบางส่วน (เช่น "ดำ-ครีม" กับ ดำ) = 0.6
+ *     ถ้าตรงทั้งสองชุด ใช้ค่าที่มากกว่า — ตรงเป๊ะในชุดใดชุดหนึ่งถือว่าตรงเป๊ะ
+ * ใช้คะแนนกลุ่มเดียวกับวงกลมสีที่แสดง สินค้าจึงเรียงไปทางเดียวกับสีที่ลูกค้าเห็น
+ * หนึ่งสินค้าขึ้นได้การ์ดเดียว ไม่ให้โปโลกินหลายช่อง และสินค้าที่ไม่มีสีตรงเลย (คะแนน 0) ไม่ถูกแนะนำ
  */
 @Service
 public class LuckyColorScoringService {
-
-    static final double DAY_WEIGHT = 2.0;
-    static final double GOAL_WEIGHT = 1.0;
 
     private final ProductRepository productRepository;
     private final ColorRuleEngine colorRuleEngine;
@@ -41,15 +42,19 @@ public class LuckyColorScoringService {
     /**
      * @param birthWeekday วันเกิด (จันทร์, อังคาร, ...)
      * @param luckyGoal    เสริมด้านไหน (การเรียน, การงาน, ...) หรือ null
+     * @param gender       MALE / FEMALE / ANY หรือ null — กรองแบบเดียวกับผู้ช่วย AI และไม่แนะนำเสื้อเด็ก
      * @param topN         จำนวนสินค้าที่ return
      */
-    public List<LuckyColorDTO.LuckyProduct> recommend(String birthWeekday, String luckyGoal, int topN) {
+    public List<LuckyColorDTO.LuckyProduct> recommend(String birthWeekday, String luckyGoal, String gender, int topN) {
         List<String> dayColors  = colorRuleEngine.getLuckyColorsByDay(birthWeekday);
         List<String> goalColors = colorRuleEngine.getLuckyColorsByGoal(luckyGoal);
 
         return productRepository.findAllWithVariants().stream()
+                .filter(p -> TargetGroup.suitsAdult(p.getTargetGroup(), gender))
                 .map(p -> bestColorOf(p, dayColors, goalColors))
                 .filter(Objects::nonNull)
+                // แสดงเฉพาะสินค้าที่มีสีตรงวันเกิดหรือด้านที่เสริม ไม่เอาสีที่ไม่เกี่ยวมาเติมให้ครบจำนวน
+                .filter(pick -> pick.score() > 0)
                 // คะแนนเท่ากันเรียงตาม id ให้ผลเหมือนเดิมทุกครั้งที่ถาม
                 .sorted(Comparator.comparingDouble(ColorPick::score).reversed()
                         .thenComparing(pick -> pick.product().getId()))
@@ -70,13 +75,19 @@ public class LuckyColorScoringService {
         }
 
         return byColor.values().stream()
-                .map(v -> new ColorPick(p, v,
-                        DAY_WEIGHT * colorMatch(v.getColor(), dayColors)
-                                + GOAL_WEIGHT * colorMatch(v.getColor(), goalColors)))
+                .map(v -> new ColorPick(p, v, colorScore(v.getColor(), dayColors, goalColors)))
                 // คะแนนเท่ากันเลือก variant id น้อยสุด — ลำดับ variants จาก DB ไม่แน่นอน ห้ามพึ่ง
                 .max(Comparator.comparingDouble(ColorPick::score)
                         .thenComparing(pick -> pick.variant().getId(), Comparator.nullsFirst(Comparator.reverseOrder())))
                 .orElse(null);
+    }
+
+    double colorScore(String color, List<String> dayColors, List<String> goalColors) {
+        double day = colorMatch(color, dayColors);
+        double goal = colorMatch(color, goalColors);
+        int group = ColorRuleEngine.luckyGroupScore(day > 0, goal > 0);
+        if (group == 0) return 0;
+        return group * Math.max(day, goal);
     }
 
     private double colorMatch(String color, List<String> targetColors) {

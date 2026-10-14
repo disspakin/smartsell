@@ -83,6 +83,7 @@ public class ProductController {
         List<ProductDTO.VariantDTO> variants = p.getVariants().stream()
                 .map(ProductDTO.VariantDTO::from)
                 .collect(Collectors.toList());
-        return new ProductDTO(p.getId(), p.getName(), p.getCategory(), p.getPrice(), p.getDescription(), p.getImageUrl(), variants);
+        return new ProductDTO(p.getId(), p.getName(), p.getCategory(), p.getPrice(), p.getDescription(), p.getImageUrl(), variants,
+                p.getTargetGroup());
     }
 }

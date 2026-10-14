@@ -4,6 +4,7 @@ import com.smartsell.dto.ChatDTO;
 import com.smartsell.dto.ProductDTO;
 import com.smartsell.entity.ChatMessage;
 import com.smartsell.entity.CustomerSession;
+import com.smartsell.entity.TargetGroup;
 import com.smartsell.repository.ChatMessageRepository;
 import com.smartsell.repository.CustomerSessionRepository;
 import com.smartsell.repository.CustomerInteractionRepository;
@@ -69,6 +70,8 @@ public class ChatService {
         if (aiResult.getSize() != null) session.setSize(aiResult.getSize());
         if (aiResult.getBudgetMin() != null) session.setBudgetMin(java.math.BigDecimal.valueOf(aiResult.getBudgetMin()));
         if (aiResult.getBudgetMax() != null) session.setBudgetMax(java.math.BigDecimal.valueOf(aiResult.getBudgetMax()));
+        String gender = TargetGroup.normalizeCustomerGender(aiResult.getGender());
+        if (gender != null) session.setGender(gender);
         session = sessionRepository.save(session);
         
         String aiReply = aiResult.getReply();
@@ -76,15 +79,16 @@ public class ChatService {
 
         ChatDTO.PreferenceSummary summary = new ChatDTO.PreferenceSummary(
                 session.getPersonalColor(), session.getOccasion(),
-                formatBudget(session), session.getSize()
+                formatBudget(session), session.getSize(), session.getGender()
         );
 
-        // 4. Rulebase scoring — return top 3 products ONLY when all 4 preferences are collected
-        // personal_color can be "Unknown" if user skipped (still counts as complete)
+        // 4. Rulebase scoring — return top 3 products ONLY when all 5 preferences are collected
+        // personal_color can be "Unknown" if user skipped, gender can be "ANY" (ไม่ระบุ) — both still count as complete
         boolean isPreferenceComplete = session.getPersonalColor() != null
                 && session.getOccasion() != null
                 && (session.getBudgetMin() != null || session.getBudgetMax() != null)
-                && session.getSize() != null;
+                && session.getSize() != null
+                && session.getGender() != null;
 
         List<ProductDTO> products;
         if (isPreferenceComplete) {
@@ -94,6 +98,7 @@ public class ChatService {
                     session.getBudgetMin(),
                     session.getBudgetMax(),
                     session.getSize(),
+                    session.getGender(),
                     3
             );
             // Save tracking for AI_RECOMMENDED — นับครั้งเดียวต่อ session ต่อสินค้า
@@ -139,6 +144,7 @@ public class ChatService {
         for (com.smartsell.entity.Product p : allProducts) {
             contextBuilder.append("สินค้า: ").append(p.getName()).append("\n");
             contextBuilder.append("- หมวดหมู่: ").append(p.getCategory()).append("\n");
+            contextBuilder.append("- สำหรับ: ").append(TargetGroup.thaiLabel(p.getTargetGroup())).append("\n");
             contextBuilder.append("- ราคา: ").append(p.getPrice()).append(" บาท\n");
             contextBuilder.append("- รายละเอียด: ").append(p.getDescription()).append("\n");
             if (p.getVariants() != null && !p.getVariants().isEmpty()) {

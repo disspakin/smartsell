@@ -40,6 +40,11 @@ public class Product {
     @JoinColumn(name = "size_chart_id")
     private SizeChart sizeChart;
 
+    // MALE / FEMALE / UNISEX / KIDS (ดู TargetGroup) — default ใน DB ทำให้ ddl-auto เพิ่มคอลัมน์ให้ตารางที่มีข้อมูลอยู่แล้วได้
+    @Column(name = "target_group", nullable = false, length = 10,
+            columnDefinition = "varchar(10) not null default 'UNISEX'")
+    private String targetGroup = TargetGroup.UNISEX;
+
 
 
     // ----- getters / setters -----
@@ -68,5 +73,8 @@ public class Product {
 
     public SizeChart getSizeChart() { return sizeChart; }
     public void setSizeChart(SizeChart sizeChart) { this.sizeChart = sizeChart; }
+
+    public String getTargetGroup() { return targetGroup; }
+    public void setTargetGroup(String targetGroup) { this.targetGroup = targetGroup; }
 
 }

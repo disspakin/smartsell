@@ -170,6 +170,9 @@ export default function Assistant() {
       quickReplies = ['ไม่เกิน 180', 'มากกว่า 200', 'ไม่ระบุ'];
     } else if (!preferences?.size) {
       quickReplies = ['S', 'M', 'L', 'XL', 'XXL'];
+    } else if (!preferences?.gender) {
+      // "ไม่ระบุเพศ" ไม่ใช่แค่ "ไม่ระบุ" — ไม่ให้ชนกับคำตอบเรื่องงบตอนระบบตอบด้วยกฎสำรอง
+      quickReplies = ['ชาย', 'หญิง', 'ไม่ระบุเพศ'];
     }
   }
 
