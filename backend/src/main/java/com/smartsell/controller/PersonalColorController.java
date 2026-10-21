@@ -21,4 +21,10 @@ public class PersonalColorController {
         return service.saveManualChoice(request);
     }
 
+    // POST /api/personal-color/quiz  — body: { "sessionToken": "...", "answers": ["warm","cool","light","warm","deep"] }
+    @PostMapping("/quiz")
+    public PersonalColorDTO.Result quiz(@RequestBody PersonalColorDTO.QuizRequest request) {
+        return service.saveQuizResult(request);
+    }
+
 }

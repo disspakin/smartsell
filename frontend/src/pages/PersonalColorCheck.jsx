@@ -60,7 +60,6 @@ function ContrastIllustration({ high }) {
 const QUESTIONS = [
   {
     q: 'เส้นเลือดที่ข้อมือของคุณ ดูโดยรวมทั้ง 2 ข้างเห็นเป็นสีอะไรเด่นชัดมากที่สุด?',
-    axisType: 'tone',
     options: [
       { label: 'สีเขียวเด่นชัดมากที่สุด', axis: 'warm', illustration: <WristIllustration veinColor="#6a9b5e" /> },
       { label: 'สีม่วงหรือน้ำเงินเด่นชัดมากที่สุด', axis: 'cool', illustration: <WristIllustration veinColor="#7a7ec9" /> },
@@ -68,7 +67,6 @@ const QUESTIONS = [
   },
   {
     q: 'ผิวของคุณเป็นยังไงเวลาโดนแดด?',
-    axisType: 'tone',
     options: [
       { label: 'แทนง่าย ผิวออกสีน้ำผึ้งอมทอง', axis: 'warm', illustration: <SkinSunIllustration tone="#d9a56a" /> },
       { label: 'ไหม้ง่าย ผิวแดงหรือซีดแบบเย็น', axis: 'cool', illustration: <SkinSunIllustration tone="#e8b8a8" /> },
@@ -76,7 +74,6 @@ const QUESTIONS = [
   },
   {
     q: 'สีผมธรรมชาติของคุณโทนไหนใกล้เคียงที่สุด?',
-    axisType: 'depth',
     options: [
       { label: 'โทนอ่อน สว่าง (บลอนด์ / น้ำตาลอ่อน)', axis: 'light', illustration: <HairIllustration colors={['#c9a876', '#d9bd8e', '#e8d3ab']} /> },
       { label: 'โทนเข้ม (น้ำตาลเข้ม / ดำ)', axis: 'deep', illustration: <HairIllustration colors={['#3a2a1e', '#2a1d14', '#1a120c']} /> },
@@ -84,7 +81,6 @@ const QUESTIONS = [
   },
   {
     q: 'เครื่องประดับแบบไหนใส่แล้วหน้าดูสดใสกว่า?',
-    axisType: 'tone',
     options: [
       { label: 'สีทอง', axis: 'warm', illustration: <JewelryIllustration metal="#c9a43f" /> },
       { label: 'สีเงิน', axis: 'cool', illustration: <JewelryIllustration metal="#a8adb5" /> },
@@ -92,26 +88,12 @@ const QUESTIONS = [
   },
   {
     q: 'สีผมกับสีผิวของคุณ ตัดกันชัดเจน หรือกลมกลืนกัน?',
-    axisType: 'depth',
     options: [
       { label: 'ตัดกันชัดเจน (คอนทราสต์สูง)', axis: 'deep', illustration: <ContrastIllustration high /> },
       { label: 'กลมกลืนกัน (คอนทราสต์ต่ำ)', axis: 'light', illustration: <ContrastIllustration high={false} /> },
     ],
   },
 ];
-
-function computeSeasonFromAnswers(answers) {
-  const toneAnswers = QUESTIONS.map((q, i) => (q.axisType === 'tone' ? answers[i] : null)).filter(Boolean);
-  const depthAnswers = QUESTIONS.map((q, i) => (q.axisType === 'depth' ? answers[i] : null)).filter(Boolean);
-  const warmCount = toneAnswers.filter((a) => a === 'warm').length;
-  const tone = warmCount > toneAnswers.length / 2 ? 'warm' : 'cool';
-  const lightCount = depthAnswers.filter((a) => a === 'light').length;
-  const depth = lightCount > depthAnswers.length / 2 ? 'light' : 'deep';
-  if (tone === 'warm' && depth === 'light') return 'Spring';
-  if (tone === 'warm' && depth === 'deep') return 'Autumn';
-  if (tone === 'cool' && depth === 'light') return 'Summer';
-  return 'Winter';
-}
 
 const SEASON_CARDS = [
   { key: 'Spring', bg: 'linear-gradient(135deg,#fdf6df,#fbe9b8)', swatches: ['#e8d5ec', '#f7cfd8', '#d9ecc7', '#fdf1b8', '#fbdcc4', '#c9a0dc', '#f2a6bb', '#a8d18a', '#f4d35e', '#f4977a'] },
@@ -140,11 +122,10 @@ export default function PersonalColorCheck() {
   }
 
   async function submitQuiz(finalAnswers) {
-    const season = computeSeasonFromAnswers(finalAnswers);
     setLoading(true);
     setError(null);
     try {
-      const res = await personalColorApi.chooseManual(season);
+      const res = await personalColorApi.submitQuiz(finalAnswers);
       setResult(res);
       setView('result');
     } catch (e) {
