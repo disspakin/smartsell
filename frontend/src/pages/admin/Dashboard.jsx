@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, authApi } from '../../api/client';
 import DateRangeFilter, { periodFromSearchParams, periodToSearch } from '../../components/DateRangeFilter';
+import '../../styles/admin.css';
 import { STAFF_LOGIN_PATH, STAFF_PRODUCT_ANALYTICS_PATH } from '../../config/staffRoutes';
 
 export default function AdminDashboard() {
@@ -211,12 +212,7 @@ export default function AdminDashboard() {
             )}
 
             {/* Stat Overview Cards */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '20px',
-              marginBottom: '32px',
-            }}>
+            <div className="dash-stats">
               <div style={{
                 backgroundColor: '#ffffff',
                 padding: '24px',
@@ -293,7 +289,8 @@ export default function AdminDashboard() {
             {/* Top 5 Sections Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
+              // min(…, 100%) — จอแคบกว่า 450px (มือถือ) กล่องหดตามจอแทนที่จะล้นจนต้องเลื่อนซ้ายขวา
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))',
               gap: '24px',
               marginBottom: '32px',
             }}>
@@ -508,7 +505,7 @@ export default function AdminDashboard() {
             {/* Demand Breakdown Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))',
               gap: '24px',
               marginBottom: '32px',
             }}>
