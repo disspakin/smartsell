@@ -116,6 +116,15 @@ npm run dev
 - `ColorRuleEngine.scoreColor` หาสีที่ตรงเป๊ะให้ครบก่อนหาตรงบางส่วน (เดิม "เหลือง" ไปชน "เหลืองทอง" ของ Gold ก่อน)
   — มีผลกับ Personal Color ด้วย
 
+**Personal Color Check** (`PersonalColorService`, `PersonalColorCheck.jsx`)
+- การคำนวณโทนสีย้ายมาอยู่ที่ backend แล้ว หน้าเว็บส่งแค่คำตอบ 5 ข้อไป `POST /api/personal-color/quiz`
+  เช่น `{ "sessionToken": "...", "answers": ["warm","cool","light","warm","deep"] }`
+- ข้อ 1, 2, 4 ถามโทน (`warm`/`cool`) ข้อ 3, 5 ถามความเข้ม (`light`/`deep`)
+  อุ่น+สว่าง = Spring, อุ่น+เข้ม = Autumn, เย็น+สว่าง = Summer, เย็น+เข้ม = Winter
+- backend ตรวจคำตอบ — จำนวนไม่ครบ 5 ข้อหรือมีค่าที่ไม่ถูกต้องได้ 400 และบันทึกผลลง `personal_color_result` ด้วย `input_method = 'QUIZ'`
+- **ถ้าแก้ลำดับหรือจำนวนคำถามในหน้าเว็บ ต้องแก้ `TONE_QUESTION` ใน `PersonalColorService` ให้ตรงกันด้วย**
+  (ถ้าสลับข้อโทนกับข้อความเข้ม จะไม่ error แต่ผลผิด)
+
 **Dashboard: ตัวกรองช่วงเวลา** (`components/DateRangeFilter.jsx`, `controller/DashboardPeriod.java`)
 - เลือกได้ 4 โหมด: ทั้งหมด (ค่าเริ่มต้น) / รายเดือน / รายปี / กำหนดเอง (วันที่ถึงวันที่) — ปีแสดงเป็น พ.ศ.
 - dropdown ปีเริ่มจากปีแรกที่มีข้อมูลในระบบ (`firstDataYear` จาก `/summary`) ถึงปีปัจจุบัน
@@ -165,7 +174,8 @@ Dashboard และ Product Analytics (ดูได้เฉพาะ STORE_MANA
 | GET | `/api/store` | ข้อมูลร้าน เวลาเปิด และสถานะเปิด/ปิดตอนนี้ |
 | POST | `/api/chat/assistant` | ผู้ช่วย AI |
 | POST | `/api/chat/support` | แชทกับเรา |
-| POST | `/api/personal-color/manual` | ผล Personal Color จากแบบสอบถาม |
+| POST | `/api/personal-color/quiz` | ส่งคำตอบแบบทดสอบ 5 ข้อ → backend คำนวณโทนสี (Spring/Summer/Autumn/Winter) พร้อม palette |
+| POST | `/api/personal-color/manual` | บันทึกโทนสีที่ลูกค้าเลือกเอง (หน้าเว็บไม่ได้เรียกแล้ว) |
 | POST | `/api/lucky-color` | สีมงคล |
 | POST | `/api/interactions`, `/api/interactions/rating` | เก็บสถิติ (VIEW, INTERESTED_CLICK, คะแนน) |
 | POST | `/api/auth/register`, `/login`, `/verify-otp`, `/resend-otp`, `/forgot-password`, `/reset-password` | ระบบพนักงาน |
