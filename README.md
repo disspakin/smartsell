@@ -22,9 +22,8 @@ psql smartsell -f database/schema.sql
 backend ตั้ง `spring.jpa.hibernate.ddl-auto=update` ไว้ Hibernate จะสร้างตาราง/คอลัมน์ที่ยังไม่มีให้จาก entity ตอนรัน
 (ห้ามเปลี่ยนเป็น `create` หรือ `create-drop` — ข้อมูลจะถูกลบทุกครั้งที่รันแอป)
 
-> **หมายเหตุ:** `schema.sql` ยังไม่มีตาราง/คอลัมน์ที่เพิ่มทีหลัง ได้แก่ `size_chart`, `size_chart_row`,
-> `product.size_chart_id`, `product_variant.price`, `store_info`, `store_hours`, `product_tag`
-> Hibernate สร้างโครงให้ แต่ **ข้อมูล** ของตารางเหล่านี้ (ตารางไซส์ ราคาตามไซส์ ข้อมูลร้าน เวลาเปิด) ต้องใส่เองใน DB
+> **หมายเหตุ:** `schema.sql` ครบตาม entity แล้ว (รวม `size_chart`, `size_chart_row`, `store_info`, `store_hours`)
+> แต่ **ข้อมูล** ของตารางเหล่านี้ (ตารางไซส์ ราคาตามไซส์ ข้อมูลร้าน เวลาเปิด) ต้องใส่เองใน DB — สคริปต์นี้สร้างแค่โครงตาราง
 
 ข้อมูลที่ seed อัตโนมัติตอนรันแอป (`config/DataInitializer.java`) — ทุกตัวเช็กก่อน insert รันซ้ำไม่เกิดข้อมูลซ้ำ:
 - สินค้าตัวอย่าง: เฉพาะตอนตาราง `product` ว่าง
@@ -186,4 +185,3 @@ Dashboard และ Product Analytics (ดูได้เฉพาะ STORE_MANA
 
 - **Virtual Try-On** — เรียก FASHN AI API จากปุ่มในหน้า Product Detail
 - **Body Analysis** — เอาการ์ดออกจากหน้าแรกไว้ก่อน (โค้ดเดิมอยู่ใน commit `bdc05fa`)
-- อัปเดต `database/schema.sql` ให้ครบตามตารางที่เพิ่มทีหลัง (ดูหมายเหตุในข้อ 1)

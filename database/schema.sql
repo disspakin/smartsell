@@ -22,6 +22,23 @@ CREATE TABLE email_otp (
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- ตารางไซส์หนึ่งแบบ สินค้าหลายตัวใช้ร่วมกันได้ (product.size_chart_id) ตัวเลขเป็นนิ้ว
+CREATE TABLE size_chart (
+    id           BIGSERIAL PRIMARY KEY,
+    name         VARCHAR(100) NOT NULL UNIQUE,
+    is_estimated BOOLEAN NOT NULL DEFAULT FALSE  -- true = ตัวเลขยังเป็นค่าประมาณ ร้านยังไม่ยืนยัน
+);
+
+CREATE TABLE size_chart_row (
+    id            BIGSERIAL PRIMARY KEY,
+    size_chart_id BIGINT NOT NULL REFERENCES size_chart(id) ON DELETE CASCADE,
+    size          VARCHAR(10) NOT NULL,
+    chest_in      NUMERIC(4,1) NOT NULL,
+    length_in     NUMERIC(4,1) NOT NULL,
+    sort_order    INT NOT NULL,       -- เรียงตามตัวอักษรจะได้ 2XL, 3XL ก่อน S
+    UNIQUE (size_chart_id, size)
+);
+
 CREATE TABLE product (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(150) NOT NULL,
@@ -30,6 +47,7 @@ CREATE TABLE product (
     description TEXT,
     image_url   VARCHAR(500),
     target_group VARCHAR(10) NOT NULL DEFAULT 'UNISEX', -- MALE / FEMALE / UNISEX / KIDS
+    size_chart_id BIGINT REFERENCES size_chart(id),     -- NULL = ยังไม่มีตารางไซส์ หน้าเว็บซ่อนลิงก์
     created_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -40,10 +58,27 @@ CREATE TABLE product_variant (
     color      VARCHAR(30),
     color_hex  VARCHAR(7),
     size       VARCHAR(10),           -- XS,S,M,L,XL
-    image_url  VARCHAR(500)
+    image_url  VARCHAR(500),
+    stock_qty  INT NOT NULL DEFAULT 0 CHECK (stock_qty >= 0),
+    price      NUMERIC(10,2)          -- ราคาเฉพาะไซส์นี้ (เช่น 3XL ขึ้นไป) NULL = ใช้ product.price
 );
 
+-- ข้อมูลร้านแบบ key/label/value เพิ่มหัวข้อได้ใน DB โดยไม่ต้องแก้โค้ด (chatbot และ footer ใช้ทุกแถว)
+CREATE TABLE store_info (
+    id         BIGSERIAL PRIMARY KEY,
+    info_key   VARCHAR(255) NOT NULL UNIQUE,
+    label      VARCHAR(255) NOT NULL,
+    info_value TEXT NOT NULL
+);
 
+-- เวลาเปิด-ปิดรายวัน day_of_week: 1 = จันทร์ ... 7 = อาทิตย์ วันที่ปิด: is_closed = true และเวลาเป็น NULL
+CREATE TABLE store_hours (
+    id          BIGSERIAL PRIMARY KEY,
+    day_of_week SMALLINT NOT NULL UNIQUE CHECK (day_of_week BETWEEN 1 AND 7),
+    open_time   TIME,
+    close_time  TIME,
+    is_closed   BOOLEAN NOT NULL DEFAULT FALSE
+);
 
 -- one row per anonymous or logged-in shopping session with the AI assistant
 CREATE TABLE customer_session (
