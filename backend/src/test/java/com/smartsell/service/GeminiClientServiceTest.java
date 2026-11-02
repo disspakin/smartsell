@@ -43,6 +43,17 @@ class GeminiClientServiceTest {
     }
 
     @Test
+    @DisplayName("กฎสำรอง: ไซส์ที่มีตัวเลข เช่น 2XL เป็นไซส์ ไม่ใช่งบ 2 บาท")
+    void fallbackParsesNumberedSizes() {
+        GeminiClientService.AssistantResponse resp = fallback("2XL");
+
+        assertThat(resp.getSize()).isEqualTo("2XL");
+        assertThat(resp.getBudgetMax()).isNull();
+        assertThat(fallback("ss").getSize()).isEqualTo("SS");
+        assertThat(fallback("xxxl").getSize()).isEqualTo("XXXL");
+    }
+
+    @Test
     @DisplayName("กฎสำรอง: \"ไม่ระบุ\" เฉยๆ ยังเป็นคำตอบเรื่องงบ ไม่ใช่เพศ")
     void fallbackKeepsBudgetNotSpecified() {
         GeminiClientService.AssistantResponse resp = fallback("ไม่ระบุ");

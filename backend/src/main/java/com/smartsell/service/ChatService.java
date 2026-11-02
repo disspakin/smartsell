@@ -67,7 +67,8 @@ public class ChatService {
         // Update session with extracted preferences
         if (aiResult.getPersonalColor() != null) session.setPersonalColor(aiResult.getPersonalColor());
         if (aiResult.getOccasion() != null) session.setOccasion(aiResult.getOccasion());
-        if (aiResult.getSize() != null) session.setSize(aiResult.getSize());
+        String size = normalizeSize(aiResult.getSize());
+        if (size != null) session.setSize(size);
         if (aiResult.getBudgetMin() != null) session.setBudgetMin(java.math.BigDecimal.valueOf(aiResult.getBudgetMin()));
         if (aiResult.getBudgetMax() != null) session.setBudgetMax(java.math.BigDecimal.valueOf(aiResult.getBudgetMax()));
         String gender = TargetGroup.normalizeCustomerGender(aiResult.getGender());
@@ -75,7 +76,6 @@ public class ChatService {
         session = sessionRepository.save(session);
         
         String aiReply = aiResult.getReply();
-        saveMessage(session, "AI", aiReply);
 
         ChatDTO.PreferenceSummary summary = new ChatDTO.PreferenceSummary(
                 session.getPersonalColor(), session.getOccasion(),
@@ -92,10 +92,12 @@ public class ChatService {
 
         List<ProductDTO> products;
         if (isPreferenceComplete) {
+            // งบเป็นเพดานอย่างเดียว ไม่ส่ง budgetMin — ลูกค้าตอบ "มากกว่า 200" คือมีงบเยอะ ต้องเห็นเสื้อราคาถูกกว่าด้วย
+            // (budgetMin ยังเก็บใน session ไว้บอกว่าลูกค้าตอบเรื่องงบแล้ว)
             products = productScoringService.recommendByPersonalColor(
                     session.getPersonalColor(),
                     session.getOccasion(),
-                    session.getBudgetMin(),
+                    null,
                     session.getBudgetMax(),
                     session.getSize(),
                     session.getGender(),
@@ -118,12 +120,36 @@ public class ChatService {
                     customerInteractionRepository.save(interaction);
                 }
             }
+            // AI ไม่รู้ผลการค้นหา มักตอบว่า "คัดสินค้ามาให้ด้านล่างแล้ว" ทั้งที่ไม่มีสินค้าตรงเงื่อนไขเลย
+            if (products.isEmpty()) aiReply = NO_MATCH_REPLY;
         } else {
             products = List.of();
         }
 
+        saveMessage(session, "AI", aiReply);
         return new ChatDTO.ChatResponse(session.getId(), aiReply, summary, products);
     }
+
+    static final String NO_MATCH_REPLY =
+            "ขออภัยค่ะ ตอนนี้ยังไม่มีเสื้อที่ตรงกับเงื่อนไขทั้งหมด ลองเปลี่ยนงบประมาณ ไซส์ หรือเพศดูได้เลยนะคะ "
+            + "หรือดูสินค้าทั้งหมดได้ที่หน้าสินค้าค่ะ";
+
+    /**
+     * ร้านเก็บไซส์ใหญ่แบบตัวเลข (2XL, 3XL, 4XL) แต่ลูกค้าและ AI มักพิมพ์ XXL, XXXL ซึ่งเทียบตรงตัวแล้วไม่เจอสินค้า
+     * และบางครั้ง Gemini คืนไซส์ซ้ำติดกัน เช่น "SSSS" หรือ "XXXLXXXL" จึงเก็บแค่ชุดแรก
+     */
+    static String normalizeSize(String raw) {
+        if (raw == null) return null;
+        String s = raw.replaceAll("\\s+", "").toUpperCase();
+        if (s.isEmpty()) return null;
+        java.util.regex.Matcher m = SIZE_PATTERN.matcher(s);
+        if (!m.matches()) return s;
+        String size = m.group(1);
+        return size.matches("X{2,4}L") ? (size.length() - 1) + "XL" : size;
+    }
+
+    private static final java.util.regex.Pattern SIZE_PATTERN =
+            java.util.regex.Pattern.compile("^(SS|S|M|L|XL|X{2,4}L|[2-4]XL)\\1*$");
 
     // =====================================================================
     // 2. AI Chat 24hrs. (General Customer Service)

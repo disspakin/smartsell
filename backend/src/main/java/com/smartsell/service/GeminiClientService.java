@@ -184,7 +184,7 @@ public class GeminiClientService {
          ห้ามเสนอช่วงราคาอื่นที่เกิน 250 บาท เช่น 350 หรือ 500
          ไม่เกิน X = budget_min null, budget_max X / มากกว่า X = budget_min X, budget_max null
          ไม่ระบุ หรือไม่จำกัดงบ = budget_min 0, budget_max null — ห้ามคืน null ทั้งคู่ เพราะระบบจะถือว่ายังไม่ได้ตอบ)
-      4. size (เช่น S, M, L, XL, XXL)
+      4. size (เช่น SS, S, M, L, XL, 2XL, 3XL, 4XL)
       5. gender — ถามว่าลูกค้าเป็นผู้ชายหรือผู้หญิง เพื่อเลือกทรงเสื้อให้ถูก ตอนถามให้เสนอตัวเลือก ชาย, หญิง หรือไม่ระบุเพศ
          ชาย = "MALE" / หญิง = "FEMALE" / ไม่ระบุ ไม่อยากบอก หรือดูได้ทุกแบบ = "ANY" — ห้ามคืน null ถ้าลูกค้าตอบแล้ว
          เพราะระบบจะถือว่ายังไม่ได้ตอบ
@@ -376,11 +376,20 @@ public class GeminiClientService {
             return resp;
         }
 
+        // 4. Size → ถามเพศเป็นข้อสุดท้าย (no lucky color question!)
+        //    เช็คก่อนงบ เพราะ 2XL/3XL/4XL มีตัวเลข จะโดนจับเป็นงบ 2 บาท
+        if (lower.matches("ss|s|m|l|xl|x{2,4}l|[2-4]xl")) {
+            String size = lower.toUpperCase();
+            resp.setSize(size);
+            resp.setReply("บันทึกไซส์ " + size + " ให้เรียบร้อยค่ะ! ข้อสุดท้าย คุณเป็นผู้ชายหรือผู้หญิงคะ จะได้เลือกทรงเสื้อให้ถูก (ชาย, หญิง, ไม่ระบุเพศ)");
+            return resp;
+        }
+
         // 3. Budget — ตัวเลขแรกในข้อความคืองบ: "มากกว่า 200" เป็นงบขั้นต่ำ นอกนั้นเป็นงบสูงสุด (เช่น "ไม่เกิน 180")
         if (lower.contains("ไม่ระบุ")) {
             resp.setBudgetMin(0.0);
             resp.setBudgetMax(99999.0);
-            resp.setReply("รับทราบค่ะ ไม่จำกัดงบประมาณ คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+            resp.setReply("รับทราบค่ะ ไม่จำกัดงบประมาณ คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (SS, S, M, L, XL, 2XL, 3XL, 4XL)");
             return resp;
         }
         java.util.regex.Matcher budget = java.util.regex.Pattern.compile("\\d+").matcher(lower);
@@ -388,23 +397,15 @@ public class GeminiClientService {
             double amount = Double.parseDouble(budget.group());
             if (lower.contains("มากกว่า")) {
                 resp.setBudgetMin(amount);
-                resp.setReply("บันทึกงบประมาณมากกว่า " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+                resp.setReply("บันทึกงบประมาณมากกว่า " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (SS, S, M, L, XL, 2XL, 3XL, 4XL)");
             } else {
                 resp.setBudgetMin(0.0);
                 resp.setBudgetMax(amount);
-                resp.setReply("บันทึกงบประมาณไม่เกิน " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (S, M, L, XL, XXL)");
+                resp.setReply("บันทึกงบประมาณไม่เกิน " + budget.group() + " บาทเรียบร้อยค่ะ! คุณสวมเสื้อผ้าไซส์ไหนเป็นประจำคะ? (SS, S, M, L, XL, 2XL, 3XL, 4XL)");
             }
             return resp;
         }
-        
-        // 4. Size → ถามเพศเป็นข้อสุดท้าย (no lucky color question!)
-        if (lower.equals("s") || lower.equals("m") || lower.equals("l") || lower.equals("xl") || lower.equals("xxl")) {
-            String size = lower.toUpperCase();
-            resp.setSize(size);
-            resp.setReply("บันทึกไซส์ " + size + " ให้เรียบร้อยค่ะ! ข้อสุดท้าย คุณเป็นผู้ชายหรือผู้หญิงคะ จะได้เลือกทรงเสื้อให้ถูก (ชาย, หญิง, ไม่ระบุเพศ)");
-            return resp;
-        }
-        
+
         // Default welcome in Thai
         resp.setReply("ยินดีต้อนรับสู่ SmartSell AI ค่ะ! เพื่อช่วยแนะนำชุดที่เหมาะกับคุณที่สุด ขอเริ่มถาม Personal Color ก่อนนะคะ — โทนสีของคุณเป็นแบบไหน? (Spring, Summer, Autumn, Winter)");
         return resp;

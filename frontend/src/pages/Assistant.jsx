@@ -169,7 +169,8 @@ export default function Assistant() {
     } else if (!preferences?.budget) {
       quickReplies = ['ไม่เกิน 180', 'มากกว่า 200', 'ไม่ระบุ'];
     } else if (!preferences?.size) {
-      quickReplies = ['S', 'M', 'L', 'XL', 'XXL'];
+      // ตรงกับไซส์ที่ร้านเก็บใน DB — เดิมมีปุ่ม XXL ซึ่งไม่ตรงกับ 2XL เลยไม่เจอสินค้า
+      quickReplies = ['SS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
     } else if (!preferences?.gender) {
       // "ไม่ระบุเพศ" ไม่ใช่แค่ "ไม่ระบุ" — ไม่ให้ชนกับคำตอบเรื่องงบตอนระบบตอบด้วยกฎสำรอง
       quickReplies = ['ชาย', 'หญิง', 'ไม่ระบุเพศ'];
