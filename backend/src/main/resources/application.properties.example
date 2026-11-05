@@ -46,3 +46,9 @@ spring.mail.properties.mail.smtp.starttls.enable=true
 spring.mail.properties.mail.smtp.starttls.required=true
 spring.mail.username=
 spring.mail.password=
+
+# ---- Mail (Resend) ----
+# ถ้าตั้ง key ไว้ จะส่งผ่าน Resend แทน Gmail — ใช้บน Railway ที่บล็อกพอร์ต SMTP
+# ขอ key ที่ https://resend.com/api-keys ต้องยืนยันโดเมนก่อน และ from ต้องอยู่ในโดเมนนั้น
+app.mail.resend-api-key=
+app.mail.from=
