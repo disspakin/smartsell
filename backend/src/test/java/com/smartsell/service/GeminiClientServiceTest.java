@@ -1,8 +1,10 @@
 package com.smartsell.service;
 
+import com.smartsell.entity.ChatMessage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,6 +53,36 @@ class GeminiClientServiceTest {
         assertThat(resp.getBudgetMax()).isNull();
         assertThat(fallback("ss").getSize()).isEqualTo("SS");
         assertThat(fallback("xxxl").getSize()).isEqualTo("XXXL");
+    }
+
+    private static ChatMessage message(String sender) {
+        ChatMessage msg = new ChatMessage();
+        msg.setSender(sender);
+        return msg;
+    }
+
+    @Test
+    @DisplayName("ส่งประวัติให้ Gemini ไม่เกินที่กำหนด และเริ่มที่ข้อความของลูกค้าเสมอ")
+    void recentHistoryKeepsLatestStartingFromUser() {
+        List<ChatMessage> history = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            history.add(message("USER"));
+            history.add(message("AI"));
+        }
+
+        List<ChatMessage> recent = GeminiClientService.recentHistory(history);
+
+        assertThat(recent).hasSizeLessThanOrEqualTo(GeminiClientService.MAX_HISTORY_MESSAGES);
+        assertThat(recent.get(0).getSender()).isEqualTo("USER");
+        assertThat(recent.get(recent.size() - 1)).isSameAs(history.get(history.size() - 1));
+    }
+
+    @Test
+    @DisplayName("ประวัติสั้นกว่าที่กำหนด ส่งไปครบทุกข้อความ")
+    void recentHistoryKeepsShortHistory() {
+        List<ChatMessage> history = List.of(message("USER"), message("AI"), message("USER"));
+
+        assertThat(GeminiClientService.recentHistory(history)).isEqualTo(history);
     }
 
     @Test

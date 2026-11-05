@@ -56,11 +56,12 @@ public class ChatService {
                 : newSession();
         session = sessionRepository.save(session);
 
+        // ดึงประวัติก่อนบันทึกข้อความใหม่ เพราะ GeminiClientService ต่อข้อความใหม่ท้ายประวัติให้เอง ไม่งั้น Gemini เห็นซ้ำ 2 รอบ
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
         saveMessage(session, "USER", request.message());
 
         // ── Parse user message → update session preferences ──────────────────
         // (Delegated to Gemini JSON parser)
-        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
         // ข้อมูลร้าน + เวลาไทยตอนนี้ + ตารางไซส์ ดึงใหม่ทุกข้อความ (ร้านแก้ใน DB แล้วมีผลทันที และสถานะเปิด/ปิดตรงเวลาจริง)
         GeminiClientService.AssistantResponse aiResult = geminiClientService.generateAssistantReply(history, request.message(), buildStoreContext());
         
@@ -73,6 +74,10 @@ public class ChatService {
         if (aiResult.getBudgetMax() != null) session.setBudgetMax(java.math.BigDecimal.valueOf(aiResult.getBudgetMax()));
         String gender = TargetGroup.normalizeCustomerGender(aiResult.getGender());
         if (gender != null) session.setGender(gender);
+        // ลูกค้าตอบข้ออื่นครบแล้วแต่ไม่บอกสี ถือว่าข้าม — ไม่รอให้ Gemini ตั้ง Unknown ไม่งั้น AI บอกว่าครบแต่ไม่มีสินค้าขึ้น
+        if (session.getPersonalColor() == null && hasAnsweredAllExceptColor(session)) {
+            session.setPersonalColor(UNKNOWN_COLOR);
+        }
         session = sessionRepository.save(session);
         
         String aiReply = aiResult.getReply();
@@ -84,11 +89,7 @@ public class ChatService {
 
         // 4. Rulebase scoring — return top 3 products ONLY when all 5 preferences are collected
         // personal_color can be "Unknown" if user skipped, gender can be "ANY" (ไม่ระบุ) — both still count as complete
-        boolean isPreferenceComplete = session.getPersonalColor() != null
-                && session.getOccasion() != null
-                && (session.getBudgetMin() != null || session.getBudgetMax() != null)
-                && session.getSize() != null
-                && session.getGender() != null;
+        boolean isPreferenceComplete = session.getPersonalColor() != null && hasAnsweredAllExceptColor(session);
 
         List<ProductDTO> products;
         if (isPreferenceComplete) {
@@ -130,6 +131,8 @@ public class ChatService {
         return new ChatDTO.ChatResponse(session.getId(), aiReply, summary, products);
     }
 
+    private static final String UNKNOWN_COLOR = "Unknown";
+
     static final String NO_MATCH_REPLY =
             "ขออภัยค่ะ ตอนนี้ยังไม่มีเสื้อที่ตรงกับเงื่อนไขทั้งหมด ลองเปลี่ยนงบประมาณ ไซส์ หรือเพศดูได้เลยนะคะ "
             + "หรือดูสินค้าทั้งหมดได้ที่หน้าสินค้าค่ะ";
@@ -138,6 +141,13 @@ public class ChatService {
      * ร้านเก็บไซส์ใหญ่แบบตัวเลข (2XL, 3XL, 4XL) แต่ลูกค้าและ AI มักพิมพ์ XXL, XXXL ซึ่งเทียบตรงตัวแล้วไม่เจอสินค้า
      * และบางครั้ง Gemini คืนไซส์ซ้ำติดกัน เช่น "SSSS" หรือ "XXXLXXXL" จึงเก็บแค่ชุดแรก
      */
+    private static boolean hasAnsweredAllExceptColor(CustomerSession session) {
+        return session.getOccasion() != null
+                && (session.getBudgetMin() != null || session.getBudgetMax() != null)
+                && session.getSize() != null
+                && session.getGender() != null;
+    }
+
     static String normalizeSize(String raw) {
         if (raw == null) return null;
         String s = raw.replaceAll("\\s+", "").toUpperCase();
@@ -160,10 +170,10 @@ public class ChatService {
                 : newSession();
         session = sessionRepository.save(session);
 
+        // ดึงก่อนบันทึกข้อความใหม่ ด้วยเหตุผลเดียวกับ handleShoppingAssistantChat
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
         saveMessage(session, "USER", request.message());
 
-        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
-        
         // Fetch all products from DB for context
         List<com.smartsell.entity.Product> allProducts = productRepository.findAllWithVariants();
         StringBuilder contextBuilder = new StringBuilder();

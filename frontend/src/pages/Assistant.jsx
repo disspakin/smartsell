@@ -404,6 +404,7 @@ export default function Assistant() {
       <div style={{ display: 'flex', gap: 8, border: '1.5px solid var(--line)', borderRadius: 30, padding: '6px 6px 6px 18px', background: '#fff' }}>
         <input
           value={input}
+          maxLength={500}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send(input)}
           placeholder="พิมพ์คำตอบของคุณ..."

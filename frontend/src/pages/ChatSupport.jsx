@@ -278,6 +278,7 @@ export default function ChatSupport() {
         <input
           ref={inputRef}
           value={input}
+          maxLength={500}
           onChange={(e) => setInput(e.target.value)}
           placeholder="พิมพ์คำถามของคุณที่นี่..."
           enterKeyHint="send"

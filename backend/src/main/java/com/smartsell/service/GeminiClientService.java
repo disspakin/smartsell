@@ -55,6 +55,9 @@ public class GeminiClientService {
         "tts", "image", "audio", "live", "embedding", "computer-use", "robotics", "customtools", "thinking-exp"
     );
 
+    // ส่งประวัติแชทให้ Gemini แค่นี้ ไม่งั้น token ต่อข้อความโตขึ้นเรื่อยๆ ตามความยาวบทสนทนา
+    static final int MAX_HISTORY_MESSAGES = 20;
+
     private static final Pattern MODEL_NAME = Pattern.compile("^gemini-(\\d+(?:\\.\\d+)?)-(flash|pro)(-lite)?(.*)$");
 
     // ดึงจาก Google API ตอนเริ่มระบบ และตัด model ที่ตอบ 404 ทิ้งระหว่างใช้งาน
@@ -162,6 +165,15 @@ public class GeminiClientService {
         return headers;
     }
 
+    /** เก็บเฉพาะข้อความล่าสุด และให้เริ่มที่ข้อความของลูกค้า เพราะ Gemini คาดว่าบทสนทนาเริ่มจากฝั่ง user */
+    static List<ChatMessage> recentHistory(List<ChatMessage> history) {
+        int start = Math.max(0, history.size() - MAX_HISTORY_MESSAGES);
+        while (start < history.size() && !"USER".equalsIgnoreCase(history.get(start).getSender())) {
+            start++;
+        }
+        return history.subList(start, history.size());
+    }
+
     /** ดึงแค่ข้อความ error จาก Google มาใส่ log ไม่เอา body ทั้งก้อน */
     private String shortError(HttpStatusCodeException e) {
         try {
@@ -204,10 +216,8 @@ public class GeminiClientService {
       และห้ามต่อท้ายคำตอบเรื่องเหล่านี้ด้วยคำถาม preference (Personal Color ฯลฯ)
 
       กรณีพิเศษ — Personal Color:
-      - ถ้าลูกค้าบอกว่า "ไม่รู้" Personal Color: ให้ตอบรับทราบอย่างสุภาพ และคง personal_color เป็น null เพื่อรอให้ลูกค้าตัดสินใจก่อน
-        ห้าม set personal_color เป็น Unknown โดยเด็ดขาด! ระบบจะแสดงตัวเลือกให้ลูกค้าเลือกเองค่ะ
-      - ถ้าลูกค้าบอกว่าต้องการ "ข้าม" หรือ "ข้ามไปคำถามต่อไป" หรือ "skip" อย่างชัดเจน: จึงค่อย set personal_color = "Unknown"
-        แล้วถามคำถามถัดไปทันที (occasion)
+      - ถ้าลูกค้าตอบว่าไม่รู้ ไม่ทราบ ไม่มี หรือต้องการข้าม (เช่น "ไม่รู้", "ไม่ทราบ", "ข้าม", "skip"):
+        ให้ set personal_color = "Unknown" แล้วถามคำถามถัดไปทันที (occasion)
       
       คุณต้องตอบกลับเป็นรูปแบบ JSON เสมอ:
       {
@@ -441,7 +451,7 @@ public class GeminiClientService {
                 // Contents (History + New Message)
                 List<Map<String, Object>> contents = new ArrayList<>();
                 if (history != null) {
-                    for (ChatMessage msg : history) {
+                    for (ChatMessage msg : recentHistory(history)) {
                         contents.add(Map.of(
                             "role", "USER".equalsIgnoreCase(msg.getSender()) ? "user" : "model",
                             "parts", List.of(Map.of("text", msg.getContent()))
