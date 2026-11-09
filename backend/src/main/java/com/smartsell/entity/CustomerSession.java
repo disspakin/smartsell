@@ -12,10 +12,6 @@ public class CustomerSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private AppUser user; // nullable — anonymous shoppers allowed
-
     @Column(name = "personal_color", length = 20)
     private String personalColor; // Spring / Summer / Autumn / Winter
 
@@ -45,9 +41,6 @@ public class CustomerSession {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-
-    public AppUser getUser() { return user; }
-    public void setUser(AppUser user) { this.user = user; }
 
     public String getPersonalColor() { return personalColor; }
     public void setPersonalColor(String personalColor) { this.personalColor = personalColor; }
