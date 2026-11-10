@@ -167,6 +167,11 @@ public class ColorRuleEngine {
      * ไม่เลือกด้านที่เสริม (goal = null) ได้สีวันเกิดตามลำดับเดิม
      */
     public List<ColorDisplay> rankLuckyColors(String day, String goal) {
+        return rankLuckyColorNames(day, goal).stream().map(LUCKY_COLOR_DISPLAY::get).toList();
+    }
+
+    /** สีเดียวกับ rankLuckyColors แต่เป็นชื่อมาตรฐานภาษาอังกฤษ — ใช้คัดสินค้าให้ตรงกับวงกลมสีที่ลูกค้าเห็น */
+    public List<String> rankLuckyColorNames(String day, String goal) {
         List<String> dayColors = getLuckyColorsByDay(day);
         List<String> goalColors = getLuckyColorsByGoal(goal);
 
@@ -183,7 +188,7 @@ public class ColorRuleEngine {
         if (!dayColors.isEmpty() && ranked.stream().noneMatch(dayColors::contains)) {
             ranked.set(ranked.size() - 1, dayColors.get(0));
         }
-        return ranked.stream().map(LUCKY_COLOR_DISPLAY::get).toList();
+        return List.copyOf(ranked);
     }
 
     /** Return recommended colors for a given goal (เสริมด้านอะไร) */

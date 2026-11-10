@@ -44,6 +44,8 @@ const GOALS = [
   { key: 'ความรัก', label: '💕 ความรัก' },
   { key: 'โชคลาภ', label: '🍀 โชคลาภ' },
   { key: 'ความมั่นใจ', label: '✨ ความมั่นใจ' },
+  // ไม่เลือก = ส่ง luckyGoal เป็น null — สีมงคลมาจากวันเกิดอย่างเดียว
+  { key: null, label: 'ไม่เลือก' },
 ];
 
 function getSessionToken() {
@@ -149,7 +151,7 @@ export default function LuckyColor() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {GOALS.map((g) => (
             <div
-              key={g.key}
+              key={g.key ?? 'none'}
               onClick={() => setGoal(g.key)}
               style={{
                 padding: '9px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
@@ -256,7 +258,8 @@ export default function LuckyColor() {
               >
                 {result.products.map((p) => (
                   <div
-                    key={p.id}
+                    // สินค้าเดียวกันขึ้นได้หลายการ์ด คนละสี — key ต้องเป็นสินค้า + สี
+                    key={`${p.id}-${p.luckyColor}`}
                     role="link"
                     tabIndex={0}
                     // เปิดหน้าสินค้าโดยเลือกสีมงคลไว้ให้ ไม่ต้องไปหาสีเอง
